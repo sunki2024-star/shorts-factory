@@ -1709,7 +1709,13 @@ def cmd_select(args):
     crop = auto_crop(src, win[0], win[1], fallback=(win[0], win[1]))
     ec = ensure_end_card(d, args.idea_id) or (d / "end-card.json")
     meta = json.loads(ec.read_text(encoding="utf-8")) if ec.exists() else {}
-    desc_tail = (f"{meta.get('church','')} 주일예배 | {meta.get('scripture','')} | "
+    # WED/DAWN productions were shipping with "주일예배" hardcoded here even
+    # though end_card_from_title already knows better (SUN/WED/DAWN prefix on
+    # the idea-id) — read it from the same place rather than assuming Sunday.
+    kind_m = re.match(r"(SUN|WED|DAWN)-", args.idea_id)
+    service_label = {"SUN": "주일예배", "WED": "수요예배",
+                      "DAWN": "새벽기도"}.get(kind_m.group(1) if kind_m else "", "주일예배")
+    desc_tail = (f"{meta.get('church','')} {service_label} | {meta.get('scripture','')} | "
                  f"{meta.get('preacher','')}").strip(" |")
 
     clips = []
@@ -2572,6 +2578,10 @@ def cmd_doctor(_args):
     print(f"  {'OK  ' if ydl else 'MISS'}  {'yt-dlp':<12} "
           f"{' '.join(ydl) if ydl else '— not installed'}")
 
+    dn = _exe("deno")
+    print(f"  {'OK  ' if dn else 'MISS'}  {'deno':<12} "
+          f"{dn or '— yt-dlp가 유튜브 JS 챌린지를 못 풀어 다운로드가 실패할 수 있다 (brew install deno)'}")
+
     wh = whisper_cmd()
     print(f"  {'OK  ' if wh else 'MISS'}  {'whisper':<12} {wh or '— not installed'}")
 
@@ -2614,7 +2624,7 @@ def cmd_doctor(_args):
         print("      bash scripts/setup_render_env.sh --with-whisper")
     else:
         print("전사 수단이 없다 → bash scripts/setup_render_env.sh --with-whisper")
-    if not (ff and ydl and fonts):
+    if not (ff and ydl and dn and fonts):
         print("렌더 도구가 빠졌다 → bash scripts/setup_render_env.sh")
     if ff and not has_subtitles_filter(ff):
         print()
