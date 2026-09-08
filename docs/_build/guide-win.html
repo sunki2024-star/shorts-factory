@@ -503,6 +503,16 @@ $</code></div>
     <div class="cmd"><code>bash scripts/shorts render SUN-2026-08-09</code><button class="copy" type="button">복사</button></div>
   </div>
   <div class="stack">
+    <h3>3편보다 더 뽑고 싶다</h3>
+    <div class="cmd"><code>bash scripts/shorts select SUN-2026-08-09 --count 5</code><button class="copy" type="button">복사</button></div>
+    <div class="cmd"><code>bash scripts/shorts render SUN-2026-08-09</code><button class="copy" type="button">복사</button></div>
+    <div class="note"><p class="lbl">이미 올린 편은 통째로 새로 골라진다</p><p><code class="inl">select</code> 는 매번 대본 전체를 처음부터 다시 읽고 고른다. 3편을 그대로 두고 2편만 "추가"해 주는 게 아니라 5편을 통째로 새로 고른다 — 이미 올린 편이 있다면 겹치거나 조금 달라질 수 있다.</p></div>
+    <p>이미 올린 편은 그대로 두고 싶으면, <code class="inl">clips.json</code> 을 열어 새 구간(<code class="inl">clip-04</code>, <code class="inl">clip-05</code> …)만 직접 추가한다. 기존 clip-01~03은 손대지 않는다. 시작·끝 시각은 같은 폴더의 <code class="inl">transcript.srt</code> 를 보고 고르거나, Claude에게 "이 설교에서 몇 편 더 뽑아줘"라고 하면 대본을 읽고 골라 넣어 준다.</p>
+    <div class="cmd"><code>notepad office/production/SUN-2026-08-09/clips.json</code><button class="copy" type="button">복사</button></div>
+    <div class="cmd"><code>bash scripts/shorts render SUN-2026-08-09</code><button class="copy" type="button">복사</button></div>
+    <p>한 설교에서 너무 많이(8~10편 이상) 뽑으려 하면 완결된 좋은 구간이 부족해 품질이 떨어지는 편이 섞여 나올 수 있다. 보통 한 편당 4~5편이 적당하다.</p>
+  </div>
+  <div class="stack">
     <h3>설교 구간을 잘못 잡았다</h3>
     <p>찬양이나 광고가 클립에 들어갔다면 설교 시작·끝 시각을 직접 준다. 전사부터 다시 하므로 시간이 걸린다.</p>
     <div class="cmd"><code>rm office/production/SUN-2026-08-09/transcript.json</code><button class="copy" type="button">복사</button></div>
