@@ -1,0 +1,51 @@
+# Credentials — never commit.
+.env
+.env.local
+
+# Timestamped research runs. Raw scrape output can be large and is
+# reproducible from the source APIs, so it stays out of git.
+youtube-research/*/
+tiktok-research/*/
+instagram-research/*/
+x-research/*/
+content-plans/*/
+!**/.gitkeep
+
+# Downloaded media used for transcript/hook analysis.
+*.mp4
+*.mov
+*.mp3
+*.wav
+*.m4a
+
+# The asset library is the exception. It is the Office's reusable media —
+# an asset library that vanishes on clone is not a library. Small, and the
+# licence for every file is recorded in a manifest beside it.
+!office/asset-library/**/*.wav
+!office/asset-library/**/*.mp3
+!office/asset-library/**/*.mp4
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node (only if you later add the Remotion composer)
+node_modules/
+
+# OS
+.DS_Store
+
+# Vendored render engine — OpenMontage (AGPL-3.0), ~160MB, reproducible.
+# Reinstall with: bash .claude/skills/openmontage/scripts/install.sh
+vendor/
+
+# Office renders. Plans, scripts and QC verdicts are committed; binaries are not.
+office/production/*/renders/
+office/production/*/refs/
+
+# Smoke-test scratch output — regenerate with scripts/smoke_test_render.sh
+office/production/_smoketest/
+church.json
+office/.cache/

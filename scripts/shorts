@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# 파이프라인 명령 하나로 모으기 — 맥이든 윈도우든 같은 형태로 친다.
+#
+#   bash scripts/shorts render   SUN-2026-08-09
+#   bash scripts/shorts captions SUN-2026-08-09
+#   bash scripts/shorts fix      SUN-2026-08-09 혜성교회 예심교회 --remember
+#   bash scripts/shorts sermons
+#
+# 맥은 `python3`, 윈도우는 보통 `python` 이라 문서마다 다르게 적어야 했고,
+# 그래서 한쪽 명령을 다른 쪽에 붙여넣는 사고가 났다. 여기서 알아서 고른다.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+pick_python() {
+  for c in python3 python py; do
+    if command -v "$c" >/dev/null 2>&1 && \
+       "$c" -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' 2>/dev/null; then
+      echo "$c"; return 0
+    fi
+  done
+  return 1
+}
+
+PYBIN=$(pick_python) || {
+  echo "파이썬 3을 찾지 못했다." >&2
+  echo >&2
+  echo "  맥    : brew install python" >&2
+  echo "  윈도우 : python.org 에서 설치. 첫 화면의" >&2
+  echo "          'Add python.exe to PATH' 를 반드시 체크한다" >&2
+  exit 1
+}
+
+if [ "$#" -eq 0 ]; then
+  echo "무엇을 할지 적어야 한다. 예:" >&2
+  echo >&2
+  echo "  bash scripts/shorts sermons                      어떤 설교가 남았나" >&2
+  echo "  bash scripts/shorts captions SUN-2026-08-09      자막 파일 꺼내기" >&2
+  echo "  bash scripts/shorts render   SUN-2026-08-09      다시 굽기" >&2
+  echo >&2
+  echo "전체 목록:  bash scripts/shorts --help" >&2
+  exit 1
+fi
+
+exec "$PYBIN" scripts/sermon_shorts.py "$@"

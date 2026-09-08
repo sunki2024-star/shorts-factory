@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Block credentials from ever entering a commit.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+#
+# Two checks: no env file may be staged at all, and no staged line may look
+# like a real key. Bypass with `git commit --no-verify` only if you are certain.
+set -uo pipefail
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+fail=0
+
+# 1. Env files are never committable. .env.example is the one allowed name.
+while IFS= read -r f; do
+  case "$f" in
+    *.env|.env|.env.*)
+      [ "$(basename "$f")" = ".env.example" ] && continue
+      echo "BLOCKED: $f is an env file and must not be committed." >&2
+      fail=1 ;;
+  esac
+done <<< "$staged"
+
+# 2. Assigned secrets in staged content. Empty values (the .env.example shape)
+#    and obvious placeholders are fine — a filled-in key is not.
+patterns='(SCRAPECREATORS_API_KEY|APIFY_TOKEN|TUBELAB_API_KEY|GEMINI_API_KEY|ANTHROPIC_API_KEY|OPENAI_API_KEY|REPLICATE_API_TOKEN|ELEVENLABS_API_KEY|AWS_SECRET_ACCESS_KEY)[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9_\-]{12,}'
+
+while IFS= read -r f; do
+  git diff --cached -U0 -- "$f" \
+    | grep -E '^\+' \
+    | grep -vE '^\+\+\+' \
+    | grep -EnT "$patterns" 2>/dev/null \
+    | grep -viE 'your-|placeholder|example|xxx|<[a-z-]+>|changeme' \
+    | while IFS= read -r hit; do
+        echo "BLOCKED: $f looks like it contains a real credential:" >&2
+        echo "         ${hit:0:100}" >&2
+      done
+  if git diff --cached -U0 -- "$f" | grep -E '^\+' | grep -vE '^\+\+\+' \
+     | grep -Eq "$patterns" \
+     && ! git diff --cached -U0 -- "$f" | grep -E '^\+' \
+     | grep -E "$patterns" | grep -qiE 'your-|placeholder|example|xxx|<[a-z-]+>|changeme'; then
+    fail=1
+  fi
+done <<< "$staged"
+
+if [ "$fail" -ne 0 ]; then
+  echo "" >&2
+  echo "Commit refused. Put secrets in the environment, not in the repo:" >&2
+  echo "  cloud session -> environment variables in the Claude Code environment settings" >&2
+  echo "  CI            -> GitHub Actions secrets" >&2
+  echo "  local         -> .env (already gitignored)" >&2
+  exit 1
+fi
+exit 0

@@ -1,0 +1,435 @@
+<title>아들 클로드에서 내 클로드로</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600&display=swap">
+<style>
+:root{
+  --ground:#FAF8F3; --surface:#FFFFFF; --sunk:#F2EEE4;
+  --ink:#1A1814; --ink-soft:#605A4E; --ink-faint:#8C8474;
+  --rule:#E4DED0; --rule-soft:#EFEADE;
+  --accent:#A87400; --accent-ink:#7A5400; --accent-wash:#FBF1D6;
+  --warn:#A63A22; --warn-wash:#FBEDE8;
+  --term-bg:#1B1A17; --term-ink:#EDE7DA; --term-dim:#8F887A; --term-accent:#FFD84D;
+  --shadow:0 1px 2px rgba(26,24,20,.05), 0 8px 24px -12px rgba(26,24,20,.16);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#131210; --surface:#1C1A17; --sunk:#211E1A;
+    --ink:#F1ECE1; --ink-soft:#B3AB9B; --ink-faint:#847D6E;
+    --rule:#302C26; --rule-soft:#26231E;
+    --accent:#FFD84D; --accent-ink:#FFE180; --accent-wash:#2A2517;
+    --warn:#E8836A; --warn-wash:#2C1D18;
+    --term-bg:#000000; --term-ink:#EDE7DA; --term-dim:#8F887A; --term-accent:#FFD84D;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#131210; --surface:#1C1A17; --sunk:#211E1A;
+  --ink:#F1ECE1; --ink-soft:#B3AB9B; --ink-faint:#847D6E;
+  --rule:#302C26; --rule-soft:#26231E;
+  --accent:#FFD84D; --accent-ink:#FFE180; --accent-wash:#2A2517;
+  --warn:#E8836A; --warn-wash:#2C1D18;
+  --term-bg:#000000; --term-ink:#EDE7DA; --term-dim:#8F887A; --term-accent:#FFD84D;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);
+  font-family:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  font-weight:400;font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased}
+.wrap{max-width:46rem;margin:0 auto;padding:0 1.5rem 6rem}
+@media(max-width:520px){.wrap{padding:0 1.1rem 4rem}body{font-size:15px}}
+h1,h2,h3{font-family:"Gowun Batang","Apple SD Gothic Neo",serif;text-wrap:balance;margin:0}
+h1{font-size:clamp(2rem,5.5vw,2.9rem);line-height:1.2;font-weight:700;letter-spacing:-.01em}
+h2{font-size:clamp(1.35rem,3.4vw,1.7rem);line-height:1.35;font-weight:700}
+h3{font-size:1.06rem;line-height:1.45;font-weight:700}
+p{margin:0}
+strong{font-weight:600;color:var(--ink)}
+a{color:var(--accent-ink)}
+.stack{display:flex;flex-direction:column;gap:1rem}
+section{display:flex;flex-direction:column;gap:1.1rem;scroll-margin-top:1rem}
+.sections{display:flex;flex-direction:column;gap:3.2rem;padding-top:2.4rem}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;font-weight:600;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
+header.top{padding:3.2rem 0 0;display:flex;flex-direction:column;gap:1rem}
+.osbadge{align-self:flex-start;display:inline-flex;align-items:center;gap:.5rem;
+  font-family:"IBM Plex Mono",monospace;font-size:.72rem;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;padding:.3rem .7rem;border-radius:999px}
+.os-mac{color:#4A4A4A;background:#E9E6E0;border:1px solid #D6D2C9}
+.os-win{color:#0E5FA8;background:#E2EEFA;border:1px solid #C3DDF3}
+:root:not([data-theme="light"]) .os-mac{color:#D8D4CB;background:#2A2823;border-color:#3B382F}
+:root:not([data-theme="light"]) .os-win{color:#8CC4F2;background:#132436;border-color:#1E3B55}
+:root[data-theme="dark"] .os-mac{color:#D8D4CB;background:#2A2823;border-color:#3B382F}
+:root[data-theme="dark"] .os-win{color:#8CC4F2;background:#132436;border-color:#1E3B55}
+.lede{font-size:1.06rem;color:var(--ink-soft);max-width:34rem}
+.reqs{display:flex;flex-wrap:wrap;gap:.5rem;padding-top:.3rem}
+.reqs span{font-size:.82rem;color:var(--ink-soft);background:var(--sunk);
+  border:1px solid var(--rule-soft);border-radius:6px;padding:.25rem .6rem}
+.part{display:flex;align-items:baseline;gap:.9rem;padding-top:1.4rem;
+  border-top:2px solid var(--accent)}
+.part .n{font-family:"IBM Plex Mono",monospace;font-size:.74rem;font-weight:600;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink);white-space:nowrap}
+.part .when{font-size:.84rem;color:var(--ink-faint);margin-left:auto;white-space:nowrap}
+.step{display:grid;grid-template-columns:2.4rem 1fr;gap:0 1rem;align-items:start}
+.step + .step{margin-top:1.5rem}
+.step .num{font-family:"IBM Plex Mono",monospace;font-size:.78rem;font-weight:600;
+  color:var(--accent-ink);background:var(--accent-wash);border-radius:999px;
+  width:2rem;height:2rem;display:grid;place-items:center;margin-top:.2rem;
+  font-variant-numeric:tabular-nums}
+.step .body{display:flex;flex-direction:column;gap:.65rem;min-width:0}
+.cmd{position:relative;background:var(--term-bg);border-radius:8px;
+  padding:.85rem 4.4rem .85rem 1rem;overflow-x:auto;box-shadow:var(--shadow)}
+.cmd code{font-family:"IBM Plex Mono","IBM Plex Sans KR",monospace;font-size:.86rem;
+  line-height:1.7;color:var(--term-ink);white-space:pre;display:block}
+.cmd code::before{content:"$ ";color:var(--term-accent);font-weight:600}
+.cmd.mac code::before{content:"% ";color:var(--term-accent);font-weight:600}
+button.copy{position:absolute;top:.5rem;right:.5rem;
+  font-family:"IBM Plex Sans KR",sans-serif;font-size:.72rem;font-weight:500;
+  color:var(--term-dim);background:transparent;border:1px solid #3A3730;
+  border-radius:5px;padding:.22rem .5rem;cursor:pointer;transition:color .15s,border-color .15s}
+button.copy:hover{color:var(--term-ink);border-color:#5C574C}
+button.copy:focus-visible{outline:2px solid var(--term-accent);outline-offset:2px}
+button.copy[data-done="1"]{color:var(--term-accent);border-color:var(--term-accent)}
+.out{background:var(--sunk);border:1px solid var(--rule-soft);border-radius:8px;
+  padding:.8rem 1rem;overflow-x:auto}
+.out code{font-family:"IBM Plex Mono","IBM Plex Sans KR",monospace;font-size:.8rem;
+  line-height:1.7;color:var(--ink-soft);white-space:pre;display:block}
+code.inl{font-family:"IBM Plex Mono","IBM Plex Sans KR",monospace;font-size:.86em;
+  background:var(--sunk);border:1px solid var(--rule-soft);border-radius:4px;
+  padding:.08em .34em;color:var(--ink)}
+.note{display:flex;flex-direction:column;gap:.4rem;background:var(--warn-wash);
+  border-left:3px solid var(--warn);border-radius:0 8px 8px 0;padding:.9rem 1.1rem}
+.note .lbl{font-weight:600;color:var(--warn);font-size:.92rem}
+.note p{font-size:.94rem;color:var(--ink-soft)}
+.tip{display:flex;flex-direction:column;gap:.4rem;background:var(--accent-wash);
+  border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:.9rem 1.1rem}
+.tip .lbl{font-weight:600;color:var(--accent-ink);font-size:.92rem}
+.tip p{font-size:.94rem;color:var(--ink-soft)}
+.fork{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media(max-width:640px){.fork{grid-template-columns:1fr}}
+.path{background:var(--surface);border:1px solid var(--rule);border-radius:12px;
+  padding:1.3rem;display:flex;flex-direction:column;gap:.8rem;box-shadow:var(--shadow)}
+.path.pick{border-color:var(--accent);border-width:1.5px}
+.path .tag{align-self:flex-start;font-family:"IBM Plex Mono",monospace;font-size:.68rem;
+  letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:var(--accent-ink);
+  background:var(--accent-wash);padding:.2rem .55rem;border-radius:4px}
+.path h3{font-size:1.12rem}
+.path p{font-size:.92rem;color:var(--ink-soft)}
+.stages{display:flex;flex-direction:column;gap:.5rem}
+.stg{display:grid;grid-template-columns:9.5rem 1fr 4.8rem;gap:.7rem;align-items:center;font-size:.88rem}
+@media(max-width:560px){.stg{grid-template-columns:7.2rem 1fr 4.2rem;font-size:.79rem;gap:.5rem}}
+.stg .lab{color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stg .track{background:var(--sunk);border-radius:3px;height:.7rem;overflow:hidden}
+.stg .fill{height:100%;background:var(--rule);border-radius:3px}
+.stg .dur{font-family:"IBM Plex Mono",monospace;font-size:.76rem;color:var(--ink-faint);
+  text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stg.hot .lab{color:var(--ink);font-weight:500}
+.stg.hot .fill{background:var(--accent)}
+.stg.hot .dur{color:var(--accent-ink);font-weight:600}
+h4{font-family:"IBM Plex Sans KR",sans-serif;font-size:.82rem;font-weight:600;
+  letter-spacing:.04em;color:var(--ink-faint);margin:.5rem 0 -.25rem}
+.tblwrap{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:33rem;font-size:.89rem}
+th,td{text-align:left;padding:.65rem .85rem;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+thead th{font-family:"IBM Plex Mono",monospace;font-size:.67rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-faint);font-weight:600;background:var(--sunk);
+  border-bottom:1px solid var(--rule)}
+tbody tr:last-child td{border-bottom:0}
+td:first-child{font-family:"IBM Plex Mono","IBM Plex Sans KR",monospace;font-size:.8rem;color:var(--ink)}
+td:last-child{color:var(--ink-soft)}
+ul.rules{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.55rem}
+ul.rules li{padding-left:1.1rem;position:relative;font-size:.93rem;color:var(--ink-soft)}
+ul.rules li::before{content:"";position:absolute;left:0;top:.68em;width:.34rem;height:.34rem;
+  border-radius:1px;background:var(--accent)}
+footer{margin-top:3.2rem;padding-top:1.4rem;border-top:1px solid var(--rule);
+  font-size:.85rem;color:var(--ink-faint);display:flex;flex-direction:column;gap:.3rem}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+.toc{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem;
+  border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+  padding:1.1rem 0;margin-top:.6rem}
+@media(max-width:640px){.toc{grid-template-columns:1fr;gap:1.1rem}}
+.toc section{display:flex;flex-direction:column;gap:.35rem}
+.toc .h{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--accent-ink);font-weight:600}
+.toc ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.18rem}
+.toc li{font-size:.86rem;color:var(--ink-soft);line-height:1.5}
+.loop{display:flex;align-items:stretch;gap:.6rem;flex-wrap:wrap}
+.loop .box{flex:1 1 8rem;background:var(--surface);border:1px solid var(--rule);
+  border-radius:9px;padding:.75rem .85rem;display:flex;flex-direction:column;gap:.2rem}
+.loop .box .t{font-weight:600;font-size:.9rem}
+.loop .box .s{font-size:.78rem;color:var(--ink-faint)}
+.loop .arw{align-self:center;color:var(--accent);font-size:1.1rem;font-weight:700}
+@media(max-width:560px){.loop{flex-direction:column}.loop .arw{transform:rotate(90deg)}}
+.opener{display:grid;grid-template-columns:auto 1fr;gap:.45rem 1rem;align-items:baseline}
+.opener .y{color:var(--accent-ink);font-weight:700}
+.opener .n{color:var(--warn);font-weight:700}
+.opener span:nth-child(even){font-size:.93rem;color:var(--ink-soft)}
+.card{display:grid;grid-template-columns:14rem 1fr;gap:1.4rem;align-items:center}
+@media(max-width:600px){.card{grid-template-columns:1fr;gap:1rem}}
+.card-inner{background:#123A34;border-radius:10px;aspect-ratio:9/16;max-height:22rem;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.5rem;padding:1.1rem .85rem;text-align:center;box-shadow:var(--shadow)}
+.card-inner span{line-height:1.35;text-wrap:balance}
+.c-date{color:#C8D8D4;font-size:.74rem}
+.c-ref{color:#90E0C8;font-size:.84rem;font-weight:600;margin-bottom:.45rem}
+.c-title{color:#FFFFFF;font-size:1rem;font-weight:600;margin-bottom:1.3rem;font-family:"Gowun Batang",serif}
+.c-preacher{color:#E8F0EE;font-size:.77rem;margin-bottom:.45rem}
+.c-church{color:#FFFFFF;font-size:.9rem;font-weight:600}
+.c-handle{color:#98B0AC;font-size:.68rem}
+.card-legend{display:flex;flex-direction:column;gap:.55rem}
+.card-legend div{display:grid;grid-template-columns:3.4rem 1fr;gap:.7rem;align-items:baseline}
+.card-legend .k{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--accent-ink);font-weight:600}
+.card-legend .v{font-size:.89rem;color:var(--ink-soft)}
+
+.kicker{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--accent-ink);font-weight:600}
+h4{font-family:"IBM Plex Sans KR",sans-serif;font-size:.82rem;font-weight:600;
+  color:var(--ink-faint);margin:.5rem 0 -.25rem}
+
+/* 무엇이 따라오고 무엇을 옮기는가 — 이 문서의 뼈대 */
+.ledger{display:flex;flex-direction:column;border:1px solid var(--rule);
+  border-radius:12px;background:var(--surface);overflow:hidden}
+.ledger .row{display:grid;grid-template-columns:7.4rem 1fr 8.6rem;gap:.9rem;
+  align-items:baseline;padding:.85rem 1.1rem;border-top:1px solid var(--rule-soft)}
+.ledger .row:first-child{border-top:none}
+@media(max-width:600px){
+  .ledger .row{grid-template-columns:5rem 1fr;gap:.5rem .8rem}
+  .ledger .row .where{grid-column:2}
+}
+.ledger .what{font-weight:600;font-size:.93rem;white-space:nowrap}
+.ledger .where{font-size:.87rem;color:var(--ink-soft)}
+.ledger .verdict{justify-self:start;font-family:"IBM Plex Mono",monospace;
+  font-size:.7rem;letter-spacing:.1em;font-weight:600;padding:.2rem .55rem;
+  border-radius:4px;white-space:nowrap}
+.v-stay{color:var(--ink-faint);background:var(--sunk);border:1px solid var(--rule-soft)}
+.v-move{color:var(--accent-ink);background:var(--accent-wash);border:1px solid var(--accent)}
+
+/* 순서가 있는 세 단계 — 번호가 실제로 뜻이 있다 */
+.stepnum{display:flex;align-items:center;gap:.75rem}
+.stepnum .n{font-family:"IBM Plex Mono",monospace;font-size:.78rem;font-weight:600;
+  color:var(--accent-ink);background:var(--accent-wash);border-radius:999px;
+  width:1.9rem;height:1.9rem;display:grid;place-items:center;flex:none}
+
+/* Claude 안에서 치는 것은 셸 명령이 아니다 — 프롬프트 표기를 뺀다 */
+.cmd.inclaude code::before{content:"› ";color:var(--term-accent);font-weight:600}
+.cmd.prompt{padding:1rem 4.4rem 1rem 1.1rem}
+.cmd.prompt code::before{content:none}
+.cmd.prompt code{white-space:pre-wrap;font-size:.8rem;line-height:1.75}
+
+.check{display:flex;flex-direction:column;gap:.5rem;margin:0;padding:0;list-style:none}
+.check li{display:grid;grid-template-columns:1.15rem 1fr;gap:.7rem;align-items:start;
+  font-size:.93rem;color:var(--ink-soft)}
+.check li::before{content:"";width:1.05rem;height:1.05rem;margin-top:.28em;
+  border:1.5px solid var(--rule);border-radius:4px;background:var(--sunk)}
+
+@media print{
+  /* 인쇄는 흰 종이다 — 화면용 어두운 팔레트를 강제로 밝게 되돌린다 */
+  :root, :root[data-theme="dark"]{
+    --ground:#FFFFFF; --surface:#FFFFFF; --sunk:#F4F1EA;
+    --ink:#141210; --ink-soft:#3D3831; --ink-faint:#6B6459;
+    --rule:#C9C2B4; --rule-soft:#DFD9CC;
+    --accent:#8A5F00; --accent-ink:#6B4A00; --accent-wash:#FBF3DC;
+    --warn:#8C2F1A; --warn-wash:#FAEDE9;
+    --term-bg:#F4F1EA; --term-ink:#141210; --term-dim:#6B6459; --term-accent:#8A5F00;
+    --shadow:none;
+  }
+  @page{ size:A4; margin:16mm 14mm 18mm; }
+  body{ font-size:10.5pt; line-height:1.6; background:#fff }
+  .wrap{ max-width:none; padding:0 }
+  /* 종이에서는 누를 수 없다 */
+  button.copy{ display:none !important }
+  .cmd{ border:1px solid var(--rule); box-shadow:none; padding:.5rem .7rem }
+  .cmd, .out{ overflow:visible }
+  .cmd code, .out code{
+    font-size:9.5pt;
+    white-space:pre-wrap;          /* 화면에선 옆으로 스크롤되지만 종이에선 잘린다 */
+    overflow-wrap:anywhere;
+  }
+  .cmd code::before{ color:var(--accent-ink) }
+  .path, .oscard, .tblwrap, .card-inner{ box-shadow:none }
+  /* 한 덩어리가 페이지에 걸쳐 잘리지 않게 */
+  .step, .cmd, .out, .note, .tip, .path, .oscard, .stg,
+  .card, .loop, .field, tr{ break-inside:avoid; page-break-inside:avoid }
+  h1,h2,h3,h4{ break-after:avoid; page-break-after:avoid }
+  .part{ break-before:page; page-break-before:page; padding-top:0 }
+  section{ gap:.8rem }
+  .sections{ gap:1.6rem; padding-top:1.2rem }
+  header.top{ padding-top:0 }
+  /* 링크는 종이에서 주소가 보여야 쓸모가 있다 */
+  a[href^="http"]::after{ content:" (" attr(href) ")"; font-size:8.5pt; color:var(--ink-faint) }
+  footer{ margin-top:1.6rem }
+}
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <p class="kicker">방배동 예심교회 · 쇼츠 자동화</p>
+  <h1>아들 클로드에서<br>내 클로드로</h1>
+  <p class="lede">지금까지 이 파이프라인은 <strong>아들 계정의 Claude</strong>에서 만들어졌습니다. 이제부터 <strong>내 계정</strong>으로, 내 맥에서 돌리려면 무엇을 해야 하는지. 회색 상자는 <strong>복사</strong>를 눌러 터미널에 그대로 붙여넣으면 됩니다.</p>
+  <div class="reqs">
+    <span>맥 · 터미널</span><span>30분</span><span>비용 0원</span><span>새로 깔 것 없음</span>
+  </div>
+</header>
+
+<div class="sections">
+
+<section>
+  <p class="eyebrow">먼저</p>
+  <h2>옮길 게 생각보다 적습니다</h2>
+  <p>프로그램도 만든 기록도 <strong>이미 이 맥 안에</strong> 있습니다. 다시 받을 것이 없습니다. 실제로 손대는 것은 두 가지뿐입니다.</p>
+  <div class="ledger"><div class="row"><span class="what">프로그램</span><span class="where">이미 내 맥 <code class="inl">~/shorts-factory</code> 안에 있다</span><span class="verdict v-stay">그대로</span></div><div class="row"><span class="what">만든 기록</span><span class="where">같은 폴더 <code class="inl">office/produced.json</code></span><span class="verdict v-stay">그대로</span></div><div class="row"><span class="what">Claude 계정</span><span class="where">지금 아들 계정으로 로그인돼 있다</span><span class="verdict v-move">옮긴다 · 1</span></div><div class="row"><span class="what">GitHub 저장소</span><span class="where"><code class="inl">Kairose-master/shorts-factory</code></span><span class="verdict v-move">옮긴다 · 2</span></div><div class="row"><span class="what">API 키</span><span class="where">아들 세션 소유 (Apify · Gemini)</span><span class="verdict v-stay">안 쓴다</span></div></div>
+  <div class="tip"><p class="lbl">내 맥에서는 키가 하나도 필요 없다</p><p>원본은 <code class="inl">yt-dlp</code> 로 받고 전사는 <code class="inl">whisper.cpp</code> 가 한다 — 둘 다 무료다. 아들 세션이 Apify와 Gemini를 쓴 것은 클라우드 컨테이너에서 유튜브가 막혀 있었기 때문이고, 이 맥에는 그 제약이 없다. 화질과 자막 품질은 오히려 낫다.</p></div>
+</section>
+
+<section>
+  <p class="eyebrow">1단계</p>
+  <div class="stepnum"><span class="n">1</span><h2>Claude Code를 내 계정으로</h2></div>
+  <p>내 계정에도 <strong>Claude 구독(Pro 또는 Max)</strong>이 있어야 합니다. 구독이 있어야 구간 선별이 추가 비용 없이 돕니다.</p>
+
+  <h4>터미널에서</h4>
+  <div class="cmd"><code>cd ~/shorts-factory</code><button class="copy" type="button">복사</button></div>
+  <div class="cmd"><code>claude</code><button class="copy" type="button">복사</button></div>
+
+  <h4>Claude가 뜨면 그 안에서</h4>
+  <p>셸 명령이 아니라 <strong>Claude 안에서</strong> 치는 것입니다. 슬래시(/)가 붙습니다.</p>
+  <div class="cmd inclaude"><code>/logout</code><button class="copy" type="button">복사</button></div>
+  <div class="cmd inclaude"><code>/login</code><button class="copy" type="button">복사</button></div>
+  <p>브라우저가 열리면 <strong>내 계정</strong>으로 로그인합니다. 아들 계정이 아닙니다. 돌아와서 확인합니다.</p>
+  <div class="cmd inclaude"><code>/status</code><button class="copy" type="button">복사</button></div>
+  <p>내 이메일이 보이면 된 것입니다. <code class="inl">/exit</code> 로 나옵니다.</p>
+  <div class="tip"><p class="lbl">아들 계정의 클라우드 세션은 끝나도 됩니다</p><p>내 맥의 폴더는 그 세션과 아무 상관이 없습니다. 이미 다 내려받아져 있고, 그 세션이 사라져도 그대로 남습니다.</p></div>
+</section>
+
+<section>
+  <p class="eyebrow">2단계</p>
+  <div class="stepnum"><span class="n">2</span><h2>저장소를 내 것으로</h2></div>
+  <p>먼저 지금 어디를 바라보고 있는지 봅니다.</p>
+  <div class="cmd"><code>git remote -v</code><button class="copy" type="button">복사</button></div>
+  <div class="out"><code>origin  https://github.com/Kairose-master/shorts-factory (fetch)
+origin  https://github.com/Kairose-master/shorts-factory (push)</code></div>
+  <p>주소에 <strong>내 GitHub 아이디</strong>가 있으면 이 단계는 건너뜁니다.</p>
+
+  <h4>웹에서 Fork</h4>
+  <p><a href="https://github.com/Kairose-master/shorts-factory">github.com/Kairose-master/shorts-factory</a> 에 들어가 오른쪽 위 <strong>Fork</strong> 를 누릅니다. 내 계정 밑에 같은 저장소가 생깁니다.</p>
+
+  <h4>맥이 내 저장소를 보게 한다</h4>
+  <p>아래 <code class="inl">내아이디</code> 를 본인 GitHub 아이디로 바꿔서 칩니다.</p>
+  <div class="cmd"><code>git remote set-url origin https://github.com/내아이디/shorts-factory</code><button class="copy" type="button">복사</button></div>
+  <div class="cmd"><code>git remote -v</code><button class="copy" type="button">복사</button></div>
+  <p>두 줄 다 내 아이디로 바뀌었으면 됩니다.</p>
+
+  <h4>지금까지의 작업을 내 저장소로</h4>
+  <div class="cmd"><code>git push -u origin claude/shorts-creation-automation-0xaii8</code><button class="copy" type="button">복사</button></div>
+  <p>아이디와 <strong>비밀번호 대신 토큰</strong>을 묻습니다. 토큰은 <a href="https://github.com/settings/tokens">github.com/settings/tokens</a> → <strong>Generate new token (classic)</strong> → <code class="inl">repo</code> 만 체크 → 만든 뒤 나오는 긴 글자를 붙여넣습니다.</p>
+  <div class="note"><p class="lbl">토큰 화면은 한 번만 보여 준다</p><p>그 페이지를 벗어나면 다시 못 본다. 복사해서 어딘가에 적어 두거나, 잃어버렸으면 새로 만들면 된다. 한 번 넣으면 맥이 기억하므로 다음부터는 안 묻는다.</p></div>
+  <p>이 다음부터 안내서에 나오는 <code class="inl">git pull</code> 은 <strong>내 저장소에서</strong> 받아옵니다.</p>
+</section>
+
+<section>
+  <p class="eyebrow">3단계</p>
+  <div class="stepnum"><span class="n">3</span><h2>제대로 넘어왔는지 확인</h2></div>
+  <div class="cmd"><code>cd ~/shorts-factory</code><button class="copy" type="button">복사</button></div>
+  <div class="cmd"><code>bash scripts/shorts doctor</code><button class="copy" type="button">복사</button></div>
+  <div class="out"><code>  OK    ffmpeg        /opt/homebrew/bin/ffmpeg
+  OK    yt-dlp        /opt/homebrew/bin/yt-dlp
+  OK    whisper       /Users/…/whisper.cpp/build/bin/whisper-cli
+  OK    claude        /opt/homebrew/bin/claude
+  OK    korean font   2 file(s) in …/assets/fonts
+  OK    whisper model /Users/…/ggml-large-v3.bin</code></div>
+  <p>왼쪽이 전부 <code class="inl">OK</code> 여야 합니다. <code class="inl">MISS</code> 가 하나라도 있으면:</p>
+  <div class="cmd"><code>bash scripts/setup_render_env.sh --with-whisper</code><button class="copy" type="button">복사</button></div>
+
+  <h4>렌더가 멀쩡한지 — 인터넷 없이 30초</h4>
+  <div class="cmd"><code>bash scripts/smoke_test_render.sh</code><button class="copy" type="button">복사</button></div>
+  <p>마지막 줄이 <strong>PASS</strong> 면 됩니다.</p>
+
+  <h4>무엇이 남았는지 — 돈 안 듭니다</h4>
+  <div class="cmd"><code>bash scripts/shorts sermons</code><button class="copy" type="button">복사</button></div>
+
+  <h4>한 편 만들어 보기</h4>
+  <div class="cmd"><code>bash scripts/shorts-auto.sh</code><button class="copy" type="button">복사</button></div>
+  <p>여기까지 되면 옮긴 것입니다. 이후 사용법은 <strong>맥 안내서 2부</strong>부터와 같습니다.</p>
+</section>
+
+<section>
+  <p class="eyebrow">정리</p>
+  <h2>안 쓰는 키는 폐기합니다</h2>
+  <p>내 맥에서 돌리는 한 <code class="inl">GEMINI_API_KEY</code> 도 <code class="inl">APIFY_TOKEN</code> 도 필요 없습니다. <code class="inl">.env</code> 파일을 만들 일도 없습니다.</p>
+  <p>다만 <strong>아들 계정에 남아 있는 키는 없애는 편이 안전합니다.</strong> 살려두면 누가 쓰든 요금이 나갑니다.</p>
+  <ul class="rules"><li>Apify — <a href="https://console.apify.com">console.apify.com</a> → Settings → Integrations → 토큰 삭제</li><li>Gemini — <a href="https://aistudio.google.com/apikey">aistudio.google.com/apikey</a> → 키 삭제</li></ul>
+</section>
+
+<section>
+  <p class="eyebrow">인수인계</p>
+  <h2>내 Claude에게 처음 할 말</h2>
+  <p>내 계정으로 로그인한 Claude를 <code class="inl">~/shorts-factory</code> 에서 열고 아래를 <strong>그대로 붙여넣습니다.</strong> 이걸 읽으면 지금까지의 판단을 이어받습니다.</p>
+  <div class="cmd prompt"><code>방배동 예심교회(@yeshim1126) 주일설교를 쇼츠로 만드는 파이프라인을 이어받았다.
+이 폴더가 그 저장소다. 아들 계정에서 만들어 넘겨받은 것이고, 앞으로는 이 맥에서
+내 계정으로 돌린다.
+
+먼저 읽어라. 이미 내려진 판단이 들어 있으니 뒤집을 이유가 없으면 따른다:
+  CLAUDE.md                           ← 전체 구조
+  .claude/context/youtube-channel.md  ← 채널 구조와 제작 규칙
+  docs/설치-맥.md                      ← 사람이 쓰는 순서
+
+환경: 내 맥. 키 없음. yt-dlp + whisper.cpp large-v3 로 전부 무료로 돈다.
+
+지켜야 할 것:
+- 업로드는 절대 자동으로 하지 않는다. 렌더까지만 하고 내 승인을 받는다.
+- 설교 구간을 먼저 잡고 그 안에서만 자른다. 찬양 구간은 Content ID에 걸린다.
+- 회중석에 성도 얼굴이 잡힌 프레임은 크롭하거나 문제 구간으로 보고한다.
+- 목사님 음성 합성/클로닝은 하지 않는다. 실제 하신 말씀만 자른다.
+- 구간 선별은 전사본을 직접 읽고 판단하고, 왜 그 구간인지 근거를 붙인다.
+- 유료 API를 쓰기 전에 대략 얼마가 나갈지 먼저 말한다.</code><button class="copy" type="button">복사</button></div>
+</section>
+
+<section>
+  <p class="eyebrow">확인</p>
+  <h2>옮김 체크리스트</h2>
+  <ul class="check"><li>내 계정에 Claude 구독이 있다</li><li><code class="inl">claude</code> → <code class="inl">/logout</code> → <code class="inl">/login</code> → <code class="inl">/status</code> 에 내 이메일이 보인다</li><li>(필요하면) Fork 하고 <code class="inl">git remote -v</code> 가 내 아이디다</li><li><code class="inl">git push</code> 가 내 저장소로 올라간다</li><li><code class="inl">shorts doctor</code> 가 전부 <code class="inl">OK</code></li><li><code class="inl">smoke_test_render.sh</code> 가 PASS</li><li><code class="inl">shorts-auto.sh</code> 로 한 편이 나온다</li><li>아들 계정의 Apify · Gemini 키를 폐기했다</li></ul>
+</section>
+
+<section>
+  <p class="eyebrow">막힐 때</p>
+  <h2>화면에 이게 나오면</h2>
+  <div class="tblwrap"><table><thead><tr><th>나온 것</th><th>뜻</th><th>할 것</th></tr></thead><tbody><tr><td>claude: command not found</td><td>Claude Code가 안 깔렸다</td><td>맥 안내서 1부 4번으로</td></tr><tr><td>/login 했는데 아들 계정</td><td>브라우저에 아들 계정이 로그인돼 있다</td><td>claude.ai 로그아웃 후 다시 /login</td></tr><tr><td>git push 가 403</td><td>아직 남의 저장소를 보고 있다</td><td>2단계 remote set-url 을 다시</td></tr><tr><td>Support for password authentication was removed</td><td>비밀번호 말고 토큰이다</td><td>Generate new token (classic) → repo</td></tr><tr><td>MISS whisper</td><td>whisper.cpp 미설치</td><td>setup_render_env.sh --with-whisper</td></tr></tbody></table></div>
+  <p>그래도 안 되면 <strong>터미널에 나온 글자를 그대로 복사해서</strong> Claude에게 붙여넣으세요. 어디서 멈췄는지가 그 안에 다 있습니다.</p>
+</section>
+
+</div>
+
+<footer>
+  <p>저장소 <code class="inl">Kairose-master/shorts-factory</code> · 브랜치 <code class="inl">claude/shorts-creation-automation-0xaii8</code></p>
+  <p>같은 내용의 문서 <code class="inl">docs/내-클로드로-옮기기.md</code> · 사용법은 <code class="inl">docs/설치-맥.md</code></p>
+</footer>
+
+</div>
+
+<script>
+document.querySelectorAll("button.copy").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    var block = btn.closest(".cmd");
+    var text = block ? block.querySelector("code").textContent : "";
+    var done = function () {
+      btn.textContent = "복사됨"; btn.dataset.done = "1";
+      setTimeout(function () { btn.textContent = "복사"; delete btn.dataset.done; }, 1600);
+    };
+    var fallback = function () {
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text; ta.setAttribute("readonly", "");
+        ta.style.position = "fixed"; ta.style.top = "-1000px";
+        document.body.appendChild(ta); ta.select();
+        document.execCommand("copy"); document.body.removeChild(ta); done();
+      } catch (e) {
+        btn.textContent = "직접 복사";
+        setTimeout(function () { btn.textContent = "복사"; }, 1600);
+      }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else { fallback(); }
+  });
+});
+</script>
