@@ -2326,19 +2326,41 @@ def boxed_video_filter(mode) -> str:
     """The same crop rules as crop_filter, but scaled to fill only the
     VIDEO_BOX_H-tall box in the middle of the frame, not the full canvas.
     pad() below adds the black top/bottom margins the hook, captions and
-    logo live in. A crop that already pads itself out to the full canvas
-    ("fit", or the w/h blur-pad form) is simply shrunk to fit the box."""
+    logo live in.
+
+    The box is NOT 9:16 (it's OUT_W x VIDEO_BOX_H, wider and shorter than the
+    full canvas) — so a crop window still cut at 9:16 and then stretched to
+    fill it distorts the picture: crop_filter's `{"x","y","h"}` form derives
+    w = h*9/16, which is right for filling the full 1080x1920 canvas but
+    wrong here. The window has to be cut at the BOX's own aspect ratio
+    instead, or it comes out squashed. Widening it (same h, wider w) also
+    happens to show more of the room and shrink whoever it's centred on —
+    which is exactly the effect a tight, close-up camera needs.
+    """
+    box_ar = OUT_W / VIDEO_BOX_H   # e.g. 1080/920 — the box's own w:h, not 9:16
+
     if mode == "fit" or (isinstance(mode, dict) and (mode.get("fit") or "w" in mode)):
-        return f"{crop_filter(mode)},scale={OUT_W}:{VIDEO_BOX_H}"
+        # These already produce a full, undistorted 1080x1920 picture (a
+        # crop or a blur-padded fit). Re-fit that picture into the box
+        # keeping its own aspect, rather than stretching it to fill one with
+        # a different shape — pillarboxed inside the box if need be.
+        return (f"{crop_filter(mode)},"
+                f"scale={OUT_W}:{VIDEO_BOX_H}:force_original_aspect_ratio=decrease,"
+                f"pad={OUT_W}:{VIDEO_BOX_H}:(ow-iw)/2:(oh-ih)/2:black")
     if isinstance(mode, dict):
         h = int(mode["h"])
-        return (f"crop=w={h}*9/16:h={h}:x={int(mode.get('x', 0))}:y={int(mode.get('y', 0))},"
-                f"scale={OUT_W}:{VIDEO_BOX_H}")
+        old_w = h * 9 / 16
+        old_x = float(mode.get("x", 0))
+        y = int(mode.get("y", 0))
+        cx = old_x + old_w / 2                 # keep the same centre …
+        w = h * box_ar                          # … at the box's own aspect
+        x_expr = f"min(max({cx - w / 2:.1f}\,0)\,iw-{w:.1f})"  # clamp to the source
+        return f"crop=w={w:.0f}:h={h}:x='{x_expr}':y={y},scale={OUT_W}:{VIDEO_BOX_H}"
     if isinstance(mode, (int, float)):
         x = str(int(mode))
     else:
         x = {"center": "(iw-ow)/2", "left": "0", "right": "iw-ow"}.get(mode, "(iw-ow)/2")
-    return f"crop=w=ih*9/16:h=ih:x={x}:y=0,scale={OUT_W}:{VIDEO_BOX_H}"
+    return f"crop=w=ih*{OUT_W}/{VIDEO_BOX_H}:h=ih:x={x}:y=0,scale={OUT_W}:{VIDEO_BOX_H}"
 
 
 def cmd_render(args):
