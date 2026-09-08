@@ -2744,9 +2744,11 @@ def fetch_tab(url: str, deep: bool = False) -> str:
     cmd = list(ydl)
     if not deep:
         cmd += ["--flat-playlist"]
-    cmd += ["--print", fmt, url]
+    # 비공개·삭제된 영상 하나 때문에 재생목록 전체가 죽지 않게 — 그런 항목은
+    # 건너뛰고 나머지를 그대로 받는다.
+    cmd += ["--ignore-errors", "--print", fmt, url]
     p = subprocess.run(cmd, capture_output=True, text=True)
-    if p.returncode != 0 or not p.stdout.strip():
+    if not p.stdout.strip():
         if cache.exists():          # stale beats nothing when the network is down
             print("    새로 못 읽어 지난 목록을 쓴다", file=sys.stderr)
             return cache.read_text(encoding="utf-8")
@@ -2754,6 +2756,9 @@ def fetch_tab(url: str, deep: bool = False) -> str:
             f"  {p.stderr.strip().splitlines()[-1] if p.stderr.strip() else 'no output'}\n"
             "  If this mentions 403 or a tunnel, YouTube is blocked by this\n"
             "  environment's egress policy — see docs/environment-constraints.md.")
+    if p.returncode != 0:
+        skipped = p.stderr.count("ERROR:")
+        print(f"    일부 항목을 건너뛰었다 (비공개/삭제 등, {skipped}건)", file=sys.stderr)
     if not deep:
         first = p.stdout.splitlines()[0].split("\t") if p.stdout.strip() else []
         if len(first) < 4 or first[3] in ("", "NA"):
