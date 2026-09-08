@@ -1906,7 +1906,7 @@ def end_card_from_title(idea_id: str, video_title: str) -> dict:
     """
     m = re.match(r"(SUN|WED|DAWN)-(\d{4})-(\d{2})-(\d{2})", idea_id)
     if m:
-        label = {"SUN": "주일예배", "WED": "수요예배", "DAWN": "새벽기도"}[m.group(1)]
+        label = {"SUN": "주일예배", "WED": "수요기도회", "DAWN": "새벽기도"}[m.group(1)]
         date = (f"{int(m.group(2))}년 {int(m.group(3))}월 {int(m.group(4))}일 {label}")
     else:
         date = ""
@@ -2651,6 +2651,14 @@ def cmd_doctor(_args):
 CHANNEL = os.environ.get("SERMON_CHANNEL", "https://www.youtube.com/@yeshim1126")
 CHANNEL_STREAMS = CHANNEL.rstrip("/") + "/streams"
 CHANNEL_VIDEOS = CHANNEL.rstrip("/") + "/videos"
+# 양재 드림의 교회: 채널 탭이 아니라 두 재생목록에서 직접 읽는다 — 이 채널은
+# 스트림/동영상 탭 구분이 예심교회와 다르고, 재생목록이 이미 정확히 나뉘어 있다.
+PLAYLIST_SUNDAY = os.environ.get(
+    "PLAYLIST_SUNDAY",
+    "https://www.youtube.com/playlist?list=PLDAU49xS8DLYtyTEVXWg9Yw7NbbV2guDu")  # 드림의교회_주일예배
+PLAYLIST_WED = os.environ.get(
+    "PLAYLIST_WED",
+    "https://www.youtube.com/playlist?list=PLDAU49xS8DLbxhiVb0SOR2VKky5Hpn4hI")  # 드림의교회_수요기도회
 SERMON_PREACHER = os.environ.get("SERMON_PREACHER", "")  # 양재 드림의 교회: 제목에 설교자 이름이 없어 기본값을 비워 전체를 대상으로 한다
 CHURCH_NAME = os.environ.get("CHURCH_NAME", "방배동 예심교회")
 
@@ -2662,7 +2670,7 @@ def load_church_config() -> None:
     An explicit environment variable wins, so a one-off run can override the
     file without changing it.
     """
-    global CHANNEL, CHANNEL_STREAMS, CHANNEL_VIDEOS, SERMON_PREACHER, CHURCH_NAME
+    global CHANNEL, CHANNEL_STREAMS, CHANNEL_VIDEOS, SERMON_PREACHER, CHURCH_NAME, PLAYLIST_SUNDAY, PLAYLIST_WED
     f = REPO / "church.json"
     if f.exists():
         try:
@@ -2677,6 +2685,10 @@ def load_church_config() -> None:
             SERMON_PREACHER = cfg["preacher"]
         if not os.environ.get("CHURCH_NAME") and cfg.get("church"):
             CHURCH_NAME = cfg["church"]
+        if not os.environ.get("PLAYLIST_SUNDAY") and cfg.get("playlist_sunday"):
+            PLAYLIST_SUNDAY = cfg["playlist_sunday"]
+        if not os.environ.get("PLAYLIST_WED") and cfg.get("playlist_wed"):
+            PLAYLIST_WED = cfg["playlist_wed"]
 
 
 def channel_handle() -> str:
@@ -2696,7 +2708,7 @@ def channel_handle() -> str:
 # settled by weekday and length below, and the guess is printed rather than
 # hidden. It only picks the words on the end card; nothing downstream depends
 # on it, and end-card.json can be corrected by hand.
-KIND_LABEL = {"sunday": "주일예배", "wed": "수요예배", "dawn": "새벽기도"}
+KIND_LABEL = {"sunday": "주일예배", "wed": "수요기도회", "dawn": "새벽기도"}
 KIND_PREFIX = {"sunday": "SUN", "wed": "WED", "dawn": "DAWN"}
 
 CACHE_DIR = REPO / "office" / ".cache"
@@ -2707,34 +2719,46 @@ TITLE_DATE = re.compile(r"(20\d{2})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{1,2})")
 TITLE_SCRIPTURE = re.compile(r"\[([^\]]+)\]")
 
 
-def fetch_tab(url: str) -> str:
-    """yt-dlp's flat listing of one channel tab, cached for half a day.
+def fetch_tab(url: str, deep: bool = False) -> str:
+    """A playlist listing, cached for half a day.
 
-    The videos tab is over a thousand entries and takes minutes to walk, and
-    the channel gains one a day — re-reading it every command is pure waiting.
+    Flat mode is fast but does not reliably return upload_date for a YouTube
+    playlist. idea_id and the ledger are built from the date, so when flat
+    mode comes back without one this quietly redoes the same listing without
+    --flat-playlist — slower (one request per video) but real.
     """
     import time as _t
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cache = CACHE_DIR / (re.sub(r"[^a-z]+", "-", url.lower()).strip("-") + ".tsv")
+    suffix = "-full" if deep else ""
+    cache = CACHE_DIR / (re.sub(r"[^a-z]+", "-", url.lower()).strip("-") + suffix + ".tsv")
     if cache.exists() and _t.time() - cache.stat().st_mtime < CACHE_TTL:
         return cache.read_text(encoding="utf-8")
 
     ydl = ytdlp_cmd()
     if not ydl:
         die("yt-dlp not installed — run: bash scripts/setup_render_env.sh")
-    print(f"    채널 목록 읽는 중 — {url.rsplit('/', 1)[-1]} 탭 (처음엔 몇 분 걸린다)",
+    label = url.rsplit("list=", 1)[-1] if "list=" in url else url.rsplit("/", 1)[-1]
+    print(f"    목록 읽는 중 — {label} (처음엔 몇 분 걸린다)",
           file=sys.stderr)
-    p = subprocess.run(
-        [*ydl, "--flat-playlist", "--print", "%(id)s\t%(title)s\t%(duration)s", url],
-        capture_output=True, text=True)
+    fmt = "%(id)s\t%(title)s\t%(duration)s\t%(upload_date)s"
+    cmd = list(ydl)
+    if not deep:
+        cmd += ["--flat-playlist"]
+    cmd += ["--print", fmt, url]
+    p = subprocess.run(cmd, capture_output=True, text=True)
     if p.returncode != 0 or not p.stdout.strip():
         if cache.exists():          # stale beats nothing when the network is down
             print("    새로 못 읽어 지난 목록을 쓴다", file=sys.stderr)
             return cache.read_text(encoding="utf-8")
-        die("could not list the channel.\n"
+        die("could not list the playlist.\n"
             f"  {p.stderr.strip().splitlines()[-1] if p.stderr.strip() else 'no output'}\n"
             "  If this mentions 403 or a tunnel, YouTube is blocked by this\n"
             "  environment's egress policy — see docs/environment-constraints.md.")
+    if not deep:
+        first = p.stdout.splitlines()[0].split("\t") if p.stdout.strip() else []
+        if len(first) < 4 or first[3] in ("", "NA"):
+            print("    업로드일이 안 잡혀 — 항목별로 다시 읽는다 (더 걸린다)", file=sys.stderr)
+            return fetch_tab(url, deep=True)
     cache.write_text(p.stdout, encoding="utf-8")
     return p.stdout
 
@@ -2755,40 +2779,45 @@ def classify(title: str, day, duration: int, from_streams: bool) -> str:
 
 def list_sermons(preacher: str = SERMON_PREACHER,
                  kind: str = "all") -> list[dict]:
-    """Everything this preacher has up, newest first. Metadata only — yt-dlp's
-    flat listing costs nothing and downloads nothing."""
+    """Everything on the two curated playlists, newest first. Metadata
+    only — yt-dlp's listing costs nothing and downloads nothing."""
     import datetime as _dt
 
-    lines = [(l, True) for l in fetch_tab(CHANNEL_STREAMS).splitlines()]
+    lines = [(l, "sunday") for l in fetch_tab(PLAYLIST_SUNDAY).splitlines()]
     if kind != "sunday":
-        lines += [(l, False) for l in fetch_tab(CHANNEL_VIDEOS).splitlines()]
+        lines += [(l, "wed") for l in fetch_tab(PLAYLIST_WED).splitlines()]
 
     out = []
-    for line, from_streams in lines:
+    for line, k in lines:
+        if kind not in ("all", k):
+            continue
         parts = line.split("\t")
         if len(parts) < 2:
             continue
         vid, title = parts[0], parts[1]
         dur = int(float(parts[2])) if len(parts) > 2 and parts[2] not in ("NA", "") else 0
-        m = TITLE_DATE.search(title)
-        if not m:                       # concerts, specials — no service date
-            continue
+        upload = parts[3].strip() if len(parts) > 3 else ""
+
+        # 이 채널 제목엔 연도가 없다("1월 26일 주일예배") — 실제 업로드일을 쓴다.
+        d = None
+        if upload and upload != "NA" and len(upload) == 8 and upload.isdigit():
+            try:
+                d = _dt.date(int(upload[0:4]), int(upload[4:6]), int(upload[6:8]))
+            except ValueError:
+                d = None
+        if d is None:
+            m = TITLE_DATE.search(title)   # 업로드일이 없을 때만 제목을 보는다
+            if not m:
+                continue
+            try:
+                d = _dt.date(*(int(x) for x in m.groups()))
+            except ValueError:
+                continue
+
         if preacher and preacher not in title:
             continue
-        y, mo, dd = (int(x) for x in m.groups())
-        try:
-            d = _dt.date(y, mo, dd)
-        except ValueError:
-            continue
 
-        k = classify(title, d, dur, from_streams)
-        if kind not in ("all", k):
-            continue
-        # A Sunday service not dated a Sunday is a typo — the channel has done
-        # it (2026-07-14 was a Tuesday; the service was the 12th) — so trust the
-        # weekday and say so. Daily services keep their own date.
-        held = (d - _dt.timedelta(days=(d.weekday() + 1) % 7)
-                if k == "sunday" else d)
+        expected_weekday = 6 if k == "sunday" else 2   # 일요일=6, 수요일=2
         sm = TITLE_SCRIPTURE.search(title)
         out.append({
             "id": vid,
@@ -2797,14 +2826,13 @@ def list_sermons(preacher: str = SERMON_PREACHER,
             "kind": k,
             "kind_label": KIND_LABEL[k],
             "title_date": d.isoformat(),
-            "date": held.isoformat(),
-            "date_suspect": held != d,
-            "idea_id": f"{KIND_PREFIX[k]}-{held.isoformat()}",
+            "date": d.isoformat(),
+            "date_suspect": d.weekday() != expected_weekday,
+            "idea_id": f"{KIND_PREFIX[k]}-{d.isoformat()}",
             "duration": dur,
             "scripture": sm.group(1).strip() if sm else "",
         })
     out.sort(key=lambda x: x["date"], reverse=True)
-    # One id can appear in both tabs; keep the first (streams wins).
     seen, uniq = set(), []
     for x in out:
         if x["id"] not in seen:
