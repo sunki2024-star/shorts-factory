@@ -1930,6 +1930,9 @@ def end_card_from_title(idea_id: str, video_title: str) -> dict:
     if tail:
         # "장선기목사" and "장선기 목사" are both in use on this channel.
         preacher = "설교 · " + TRAILING_PREACHER.sub(r"\1 \2", tail).strip()
+    if not preacher:
+        # 이 채널은 영상 제목에 설교자 이름이 없다. 엔드카드에는 고정값을 쓴다.
+        preacher = "설교 · 이재용 목사"
 
     if not scripture:                       # older titles spell it out inline
         bm = BARE_SCRIPTURE.search(body)
@@ -2648,7 +2651,7 @@ def cmd_doctor(_args):
 CHANNEL = os.environ.get("SERMON_CHANNEL", "https://www.youtube.com/@yeshim1126")
 CHANNEL_STREAMS = CHANNEL.rstrip("/") + "/streams"
 CHANNEL_VIDEOS = CHANNEL.rstrip("/") + "/videos"
-SERMON_PREACHER = os.environ.get("SERMON_PREACHER", "장선기")
+SERMON_PREACHER = os.environ.get("SERMON_PREACHER", "")  # 양재 드림의 교회: 제목에 설교자 이름이 없어 기본값을 비워 전체를 대상으로 한다
 CHURCH_NAME = os.environ.get("CHURCH_NAME", "방배동 예심교회")
 
 
