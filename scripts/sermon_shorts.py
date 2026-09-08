@@ -2425,6 +2425,16 @@ def cmd_render(args):
             lst.unlink()
             body.unlink()
 
+        # 인스타그램 등 컴퓨터 업로드 화면은 자동 썸네일 후보 중 하나가
+        # 종종 검은 프레임으로 잘못 뽑힌다 (모바일 앱 업로드에서는 안 그런다).
+        # 커버 프레임을 정지 이미지로 따로 뽑아두면, 업로드 화면에서 영상
+        # 타임라인을 긁는 대신 "컴퓨터에서 선택"으로 이 파일을 바로 커버로
+        # 올릴 수 있어 그 문제를 완전히 우회한다.
+        cover = out.with_name(f"{cid}-cover.jpg")
+        run([*ffmpeg_cmd(), "-y", "-hide_banner", "-loglevel", "error",
+             "-ss", "0.05", "-i", str(out), "-frames:v", "1", "-q:v", "2",
+             str(cover)])
+
         made.append((cid, out, c))
 
     # Human-facing package. Renders are gitignored; this file is the record.
