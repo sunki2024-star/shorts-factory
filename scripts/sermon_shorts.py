@@ -61,16 +61,15 @@ OUT_W, OUT_H = 1080, 1920
 # preacher's voice natural while cutting dead air; per-clip `speed` overrides.
 DEFAULT_SPEED = 1.5
 
-# ASS colours are &HAABBGGRR — byte-reversed from hex RGB, so yellow #FFFF00
-# is written 00FFFF. Captions sit over the pulpit, which is white and brightly
-# lit; white text washed out against it even with an outline. Yellow separates
-# from both the pulpit and the dark green backdrop.
-SUBTITLE_COLOUR = "&H0000FFFF"   # #FFFF00
+# ASS colours are &HAABBGGRR — byte-reversed from hex RGB. Captions sit in
+# the flat black band under the video (see VIDEO_BOX_H below), not over the
+# footage, so plain white reads perfectly with no outline needed.
+SUBTITLE_COLOUR = "&H00FFFFFF"   # #FFFFFF
 
-# The Shorts player draws its own furniture over the bottom of the frame —
-# channel handle, title, description, progress bar — so the bottom of a
-# 1920-tall video is not ours to use. Captions are lifted clear of it.
-SUBTITLE_MARGIN_V = 480
+# Top-anchored (Alignment 8 below): distance from the TOP of the 1920 canvas,
+# not the bottom. Placed just under the video box so the caption is the first
+# thing in the bottom band, with the logo further down below it.
+SUBTITLE_MARGIN_V = 1400
 
 # The on-screen title. Chars-per-line is derived from the size rather than set
 # beside it: Korean glyphs are close to one em wide, so a title that fits at one
@@ -78,6 +77,18 @@ SUBTITLE_MARGIN_V = 480
 TITLE_SIZE = int(os.environ.get("TITLE_SIZE", 92))
 TITLE_SIDE_MARGIN = 60
 TITLE_MAX_LINES = 3
+
+# 양재 드림의 교회: 영상을 화면 꽉 채우지 않고 위아래 검정 여백이 있는 '박스'
+# 안에 넣는다 — 채널이 이미 이 스타일로 쇼츠를 올리고 있다(참고: 유튜브
+# @양재드림의교회/shorts). 위 여백엔 후크, 아래 여백엔 자막과 로고가 들어가
+# 카메라가 아무리 타이트해도 화면을 더 잘라내지 않고 사람 크기를 줄일 수 있다.
+TOP_BAND_H = 440     # 후크 문구
+VIDEO_BOX_H = 920    # 실제 영상이 보이는 가운데 박스
+BOTTOM_BAND_H = OUT_H - TOP_BAND_H - VIDEO_BOX_H   # 자막 + 로고
+
+LOGO_PATH = REPO / "assets" / "logo" / "logo-dark.png"
+LOGO_W = 460          # 아래 여백에 들어가는 로고 폭
+LOGO_Y = 1700         # 로고 위쪽 y좌표 (캔버스 기준)
 
 
 def title_per_line(size: int) -> int:
@@ -1172,7 +1183,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{FONT_NAME},{font_size},{SUBTITLE_COLOUR},&H000000FF,&H00000000,&H96000000,1,0,0,0,100,100,0,0,1,5,2,2,70,70,{margin_v},1
+Style: Default,{FONT_NAME},{font_size},{SUBTITLE_COLOUR},&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,0,0,8,70,70,{margin_v},1
 Style: Title,{FONT_NAME},{title_size},&H00FFFFFF,&H000000FF,&H00202020,&H00000000,1,0,0,0,100,100,0,0,1,6,0,8,{TITLE_SIDE_MARGIN},{TITLE_SIDE_MARGIN},110,1
 
 [Events]
@@ -1998,6 +2009,10 @@ def ensure_end_card(d: Path, idea_id: str) -> Path | None:
 END_CARD_SECONDS = 4.0
 END_CARD_BG = "0x123A34"   # the sanctuary's stage green, so the cut reads as one piece
 
+# 양재 드림의 교회: 로고가 매 클립 아래쪽에 항상 붙어 있어(LOGO_PATH),
+# 별도의 4초짜리 엔드카드 화면은 쓰지 않는다.
+ENDCARD_ENABLED = False
+
 
 def _ass_escape(s: str) -> str:
     return s.replace("\\", "").replace("{", "(").replace("}", ")").strip()
@@ -2255,25 +2270,48 @@ FIT_FILTER = (
 def crop_filter(mode) -> str:
     """16:9 → 9:16.
 
-    Three forms, increasingly specific:
+    Four forms, increasingly specific:
 
     - `"center"` / `"left"` / `"right"` — full-height window, nudged sideways.
     - a number — the exact left edge in source pixels. A broadcast layout is
       rarely centred in the file: this church's stream parks a graphic sidebar
       over the right third, so `center` slices the preacher off.
-    - `{"x":…, "y":…, "h":…}` — an explicit window. Needed when the stream
-      burns a caption band across the top: a full-height crop clips that band
+    - `{"x":…, "y":…, "h":…}` — an explicit 9:16 window (width = h*9/16),
+      scaled to fill the frame exactly. Needed when the stream burns a
+      caption band across the top: a full-height crop clips that band
       mid-word, and cutting below it also drops the dead air above the
       preacher, which frames him far better for a phone.
+    - `{"x":…, "y":…, "w":…, "h":…}` — an explicit window at its OWN aspect
+      ratio, not forced to 9:16. When the camera itself is already a tight
+      shot (a close pulpit angle with no headroom to crop into — the source
+      frame simply doesn't have more empty picture above the speaker's head),
+      no 9:16 crop out of a 16:9 frame can add headroom: the window is at
+      most as tall as the source, so the speaker fills the same fraction of
+      it either way. A wider, non-9:16 window shown whole — scaled to fit
+      inside the 1080×1920 canvas and padded with a blurred blow-up of the
+      same frame, the way `"fit"` already pads a still image — is the only
+      way to make him smaller: less of the picture has to be thrown away to
+      fill the crop, so less magnification is needed to fill the canvas.
 
-    The window is always forced to 9:16 from its height, so only x/y/h are
-    ever specified and the aspect can't be got wrong by hand.
+    A plain `{"x","y","h"}` window is never padded — only this fourth form is,
+    and only because it asks for an aspect ratio other than 9:16.
     """
     if mode == "fit":
         return FIT_FILTER
     if isinstance(mode, dict):
         if mode.get("fit"):
             return FIT_FILTER
+        if "w" in mode:
+            x, y = int(mode.get("x", 0)), int(mode.get("y", 0))
+            w, h = int(mode["w"]), int(mode["h"])
+            return (
+                f"split[fg][bg];"
+                f"[bg]scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase,"
+                f"crop={OUT_W}:{OUT_H},gblur=sigma=32,eq=brightness=-0.09[bgb];"
+                f"[fg]crop=w={w}:h={h}:x={x}:y={y},"
+                f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=decrease[fgs];"
+                f"[bgb][fgs]overlay=(W-w)/2:(H-h)/2"
+            )
         h = int(mode["h"])
         return (f"crop=w={h}*9/16:h={h}:x={int(mode.get('x', 0))}:y={int(mode.get('y', 0))},"
                 f"scale={OUT_W}:{OUT_H}")
@@ -2282,6 +2320,25 @@ def crop_filter(mode) -> str:
     else:
         x = {"center": "(iw-ow)/2", "left": "0", "right": "iw-ow"}.get(mode, "(iw-ow)/2")
     return f"crop=w=ih*9/16:h=ih:x={x}:y=0,scale={OUT_W}:{OUT_H}"
+
+
+def boxed_video_filter(mode) -> str:
+    """The same crop rules as crop_filter, but scaled to fill only the
+    VIDEO_BOX_H-tall box in the middle of the frame, not the full canvas.
+    pad() below adds the black top/bottom margins the hook, captions and
+    logo live in. A crop that already pads itself out to the full canvas
+    ("fit", or the w/h blur-pad form) is simply shrunk to fit the box."""
+    if mode == "fit" or (isinstance(mode, dict) and (mode.get("fit") or "w" in mode)):
+        return f"{crop_filter(mode)},scale={OUT_W}:{VIDEO_BOX_H}"
+    if isinstance(mode, dict):
+        h = int(mode["h"])
+        return (f"crop=w={h}*9/16:h={h}:x={int(mode.get('x', 0))}:y={int(mode.get('y', 0))},"
+                f"scale={OUT_W}:{VIDEO_BOX_H}")
+    if isinstance(mode, (int, float)):
+        x = str(int(mode))
+    else:
+        x = {"center": "(iw-ow)/2", "left": "0", "right": "iw-ow"}.get(mode, "(iw-ow)/2")
+    return f"crop=w=ih*9/16:h=ih:x={x}:y=0,scale={OUT_W}:{VIDEO_BOX_H}"
 
 
 def cmd_render(args):
@@ -2312,9 +2369,9 @@ def cmd_render(args):
     # own, so each one needs to say where it came from.
     end_card = None
     ec_path = d / "end-card.json"
-    if not args.no_end_card:
+    if ENDCARD_ENABLED and not args.no_end_card:
         ensure_end_card(d, args.idea_id)
-    if ec_path.exists() and not args.no_end_card:
+    if ENDCARD_ENABLED and ec_path.exists() and not args.no_end_card:
         cfg = json.loads(ec_path.read_text(encoding="utf-8"))
         end_card = build_end_card(cfg, out_dir / "_endcard.mp4")
         print(f"==> 엔드카드 {END_CARD_SECONDS:.0f}초 — {cfg.get('title','')}")
@@ -2392,10 +2449,18 @@ def cmd_render(args):
         # Subtitles and title are burned at the original timing, then the whole
         # picture is retimed. Doing it this way keeps captions in sync for free:
         # each frame already carries its text, and setpts only moves the frame.
-        vf = f"{crop_filter(c.get('crop', 'center'))},{subtitles_filter(ass)}"
+        # The video only fills the middle VIDEO_BOX_H of the canvas — pad()
+        # adds the black top/bottom bands the hook/captions sit in — and the
+        # logo (a second, looped input) is composited into the bottom one.
+        fc = (f"[0:v]{boxed_video_filter(c.get('crop', 'center'))},"
+              f"pad={OUT_W}:{OUT_H}:0:{TOP_BAND_H}:black,{subtitles_filter(ass)}[v1];"
+              f"[1:v]scale={LOGO_W}:-1[logo];"
+              f"[v1][logo]overlay=(W-w)/2:{LOGO_Y}[vout]")
         af = None
+        vmap = "[vout]"
         if speed != 1.0:
-            vf += f",setpts=PTS/{speed}"
+            fc += f";[vout]setpts=PTS/{speed}[vsped]"
+            vmap = "[vsped]"
             af = f"atempo={speed}"
 
         dur = (end - start) / speed
@@ -2404,7 +2469,8 @@ def cmd_render(args):
         cmd = [
             *ffmpeg_cmd(), "-y", "-hide_banner", "-loglevel", "error",
             "-ss", f"{start}", "-to", f"{end}", "-i", str(video),
-            "-vf", vf,
+            "-loop", "1", "-i", str(LOGO_PATH),
+            "-filter_complex", fc, "-map", vmap, "-map", "0:a",
         ]
         if af:
             cmd += ["-af", af]
@@ -2413,7 +2479,7 @@ def cmd_render(args):
             "-c:v", "libx264", "-preset", "medium", "-crf", "20",
             "-pix_fmt", "yuv420p", "-r", "30",
             "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
-            "-movflags", "+faststart",
+            "-movflags", "+faststart", "-shortest",
             str(body),
         ]
         run(cmd, cwd=REPO)   # 필터 안의 경로가 저장소 기준이다
@@ -2524,9 +2590,9 @@ def cmd_preview(args):
              "-vf", crop_filter(crop), "-q:v", "3", str(out / f"{cid}.jpg")])
 
         # The same moment uncropped, with the window drawn on it.
-        if isinstance(crop, dict):
-            cw = int(crop["h"] * 9 / 16)
-            box = (f"drawbox=x={crop['x']}:y={crop.get('y', 0)}:w={cw}:"
+        if isinstance(crop, dict) and not crop.get("fit"):
+            cw = int(crop["w"]) if "w" in crop else int(crop["h"] * 9 / 16)
+            box = (f"drawbox=x={crop.get('x', 0)}:y={crop.get('y', 0)}:w={cw}:"
                    f"h={crop['h']}:color=yellow@1:t=4")
         else:
             box = "null"
