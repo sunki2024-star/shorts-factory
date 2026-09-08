@@ -2275,6 +2275,46 @@ def crop_filter(mode) -> str:
     return f"crop=w=ih*9/16:h=ih:x={x}:y=0,scale={OUT_W}:{OUT_H}"
 
 
+def write_check_sheet(made: "list[tuple[str, Path, dict]]", out_path: Path) -> None:
+    """One frame from partway through each just-rendered clip, side by side.
+
+    This is the fast way to catch a bad crop — no one in frame, cropped too
+    tight, framed for a stage that has since moved — before anyone uploads
+    it. Reads the *rendered* files, not the source, so title and captions
+    show exactly as a viewer would see them. A crop mistake tends to repeat
+    across the church's actual mistake (a moved pulpit, a wrong guess) more
+    than across clips of the same idea, so one glance across all clips of an
+    idea is usually enough — it is not a substitute for watching the clip.
+    """
+    tile_w, tile_h = 270, 480
+    inputs: list[str] = []
+    filters: list[str] = []
+    labels: list[str] = []
+    n = 0
+    for cid, out, c in made:
+        if not out.exists():
+            continue
+        try:
+            dur = probe_duration(out)
+        except RuntimeError:
+            continue
+        at = min(dur * 0.25, max(dur - 0.1, 0.0))
+        inputs += ["-ss", f"{at:.2f}", "-i", str(out)]
+        filters.append(f"[{n}:v]scale={tile_w}:{tile_h}[t{n}]")
+        labels.append(f"[t{n}]")
+        n += 1
+    if n == 0:
+        return
+    if n == 1:
+        vf = filters[0].rsplit("[t0]", 1)[0]  # "[0:v]scale=...", no stack needed
+        run([*ffmpeg_cmd(), "-y", "-hide_banner", "-loglevel", "error",
+             *inputs, "-vf", vf, "-frames:v", "1", str(out_path)])
+        return
+    vf = ";".join(filters) + ";" + "".join(labels) + f"hstack=inputs={n}"
+    run([*ffmpeg_cmd(), "-y", "-hide_banner", "-loglevel", "error",
+         *inputs, "-filter_complex", vf, "-frames:v", "1", str(out_path)])
+
+
 def cmd_render(args):
     d = need(args.idea_id)
     video = find_source(d)
@@ -2421,6 +2461,13 @@ def cmd_render(args):
 
         made.append((cid, out, c))
 
+    check_sheet = out_dir / "_check.png"
+    try:
+        write_check_sheet(made, check_sheet)
+    except Exception as e:  # noqa: BLE001 — a bad preview must never fail the render
+        print(f"    (확인용 미리보기 생성 실패, 무시함: {e})")
+        check_sheet = None
+
     # Human-facing package. Renders are gitignored; this file is the record.
     # It is written from every clip in clips.json, not just the ones rendered
     # this run — a `--only` re-render used to leave a package listing one clip
@@ -2453,6 +2500,9 @@ def cmd_render(args):
 
     print(f"\n==> {len(made)} clip(s) in {rel(out_dir)}")
     print(f"==> 승인용 패키지: {rel(d / 'publish-package.md')}")
+    if check_sheet and check_sheet.exists():
+        print(f"==> 화면 확인:     {rel(check_sheet)}  "
+              "(클립마다 한 프레임씩 — 사람이 잘 나오는지 여기서 먼저 훑어본다)")
     if used_override:
         print(f"==> 자막은 {rel(d / 'captions')} 의 수정본을 썼다 "
               f"({used_override}개 클립)")
