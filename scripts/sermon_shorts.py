@@ -2536,6 +2536,8 @@ def cmd_render(args):
     else:
         print(f"==> 폴더를 열려면:  bash scripts/shorts open {args.idea_id}")
 
+    sync_produced_ledger()
+
 
 # ---------------------------------------------------------------- doctor ---
 def cmd_preview(args):
@@ -2909,6 +2911,39 @@ def record_produced(video_id: str, idea_id: str, title: str = "") -> None:
     LEDGER.write_text(
         json.dumps(sorted(led.values(), key=lambda e: e["idea_id"]),
                    ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def sync_produced_ledger() -> None:
+    """Best-effort: push the ledger so the other computer skips what's done.
+
+    Called once, right after a render finishes. Never allowed to fail the
+    render -- no internet, no saved token, someone else pushed in the
+    meantime, this isn't even a git checkout: all of those are fine, they
+    just mean nothing gets synced this time.
+    """
+    try:
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--", str(LEDGER)],
+            cwd=REPO, capture_output=True, text=True, timeout=10)
+        if status.returncode != 0:
+            return  # not a git checkout, or git isn't around
+        if not status.stdout.strip():
+            return  # nothing new to record
+        subprocess.run(["git", "add", "--", str(LEDGER)],
+                        cwd=REPO, capture_output=True, text=True, timeout=10)
+        commit = subprocess.run(
+            ["git", "commit", "-m", "제작 기록 자동 동기화"],
+            cwd=REPO, capture_output=True, text=True, timeout=10)
+        if commit.returncode != 0:
+            return
+        push = subprocess.run(["git", "push"], cwd=REPO,
+                               capture_output=True, text=True, timeout=30)
+        if push.returncode == 0:
+            print("==> 제작 기록을 GitHub에 올렸다 — 다른 컴퓨터도 이 설교는 건너뛴다")
+        else:
+            print("    (제작 기록을 못 올렸다 — 나중에 git push 를 직접 한 번 해 준다)")
+    except Exception:
+        pass
 
 
 def already_produced() -> set[str]:
