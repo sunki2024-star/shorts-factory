@@ -296,7 +296,7 @@ $</code></div><p>붙여넣기는 <code class="inl">Ctrl</code>+<code class="inl"
   <div class="step"><div class="num">2</div><div class="body">
     <h3>프로그램 받기</h3>
     <div class="cmd"><code>cd ~</code><button class="copy" type="button">복사</button></div>
-    <div class="cmd"><code>git clone -b claude/shorts-creation-automation-0xaii8 https://github.com/Kairose-master/shorts-factory</code><button class="copy" type="button">복사</button></div>
+    <div class="cmd"><code>git clone -b claude/shorts-creation-automation-0xaii8 https://github.com/sunki2024-star/shorts-factory</code><button class="copy" type="button">복사</button></div>
     <div class="cmd"><code>cd ~/shorts-factory</code><button class="copy" type="button">복사</button></div>
   </div></div>
 
@@ -439,7 +439,8 @@ $</code></div><p>붙여넣기는 <code class="inl">Ctrl</code>+<code class="inl"
   </div>
 
   <h2>그 밖에</h2>
-  <div class="tblwrap"><table><thead><tr><th>고치고 싶은 것</th><th>방법</th></tr></thead><tbody><tr><td>구간의 초를 조정</td><td>clips.json 의 start / end 를 고치고 render</td></tr><tr><td>다른 구간으로 다시</td><td>shorts select &lt;id&gt; --count 3 → render</td></tr><tr><td>설교 구간을 잘못 잡음</td><td>transcript.json 지우고 transcribe &lt;id&gt; --sermon-window 0:45:00 1:20:00</td></tr><tr><td>화면이 치우쳐 잘림</td><td>clips.json 의 crop 을 직접 준다 — 아래 참조</td></tr><tr><td>엔드카드 내용</td><td>end-card.json 을 고치고 render</td></tr><tr><td>엔드카드 빼기</td><td>render &lt;id&gt; --no-end-card</td></tr><tr><td>제목 크기</td><td>TITLE_SIZE=110 을 앞에 붙여 render (기본 92)</td></tr><tr><td>폴더 창 안 뜨게</td><td>render 뒤에 --no-open. 늘 그러려면 SHORTS_NO_OPEN=1</td></tr><tr><td>용량이 찰 때</td><td>source/ 폴더만 지운다 — 아래 참조</td></tr></tbody></table></div>
+  <div class="tblwrap"><table><thead><tr><th>고치고 싶은 것</th><th>방법</th></tr></thead><tbody><tr><td>구간의 초를 조정</td><td>clips.json 의 start / end 를 고치고 render</td></tr><tr><td>다른 구간으로 다시</td><td>shorts select &lt;id&gt; --count 3 → render</td></tr><tr><td>설교 구간을 잘못 잡음</td><td>transcript.json 지우고 transcribe &lt;id&gt; --sermon-window 0:45:00 1:20:00</td></tr><tr><td>화면이 치우쳐 잘림</td><td>clips.json 의 crop 을 직접 준다 — 아래 참조</td></tr><tr><td>엔드카드 내용</td><td>end-card.json 을 고치고 render</td></tr>
+<tr><td>릴스 썸네일이 검게 나옴</td><td>renders/ 의 -cover.jpg 를 "컴퓨터에서 선택"으로 직접 올린다 — 위 참조</td></tr><tr><td>엔드카드 빼기</td><td>render &lt;id&gt; --no-end-card</td></tr><tr><td>제목 크기</td><td>TITLE_SIZE=110 을 앞에 붙여 render (기본 92)</td></tr><tr><td>폴더 창 안 뜨게</td><td>render 뒤에 --no-open. 늘 그러려면 SHORTS_NO_OPEN=1</td></tr><tr><td>용량이 찰 때</td><td>source/ 폴더만 지운다 — 아래 참조</td></tr></tbody></table></div>
 </section>
 
 <section>
@@ -454,6 +455,11 @@ $</code></div><p>붙여넣기는 <code class="inl">Ctrl</code>+<code class="inl"
    y  위에서 몇 픽셀부터
    h  높이 (폭은 9:16에 맞춰 자동)</code></div>
   <p>간단히 <code class="inl">"crop": "center"</code> · <code class="inl">"left"</code> · <code class="inl">"right"</code> 로 써도 되고, 자르지 않고 통째로 넣으려면 <code class="inl">"crop": "fit"</code> 입니다.</p>
+
+  <h2>인스타그램 릴스 썸네일이 검게 나올 때</h2>
+  <p>핸드폰 앱으로 올리면 괜찮은데 <strong>컴퓨터로 올리면</strong> 커버 후보 중 하나가 가끔 검은 프레임으로 잘못 뽑힙니다. 영상 파일은 멀쩡합니다 — 인스타그램이 컴퓨터 업로드를 처리하는 방식의 문제입니다.</p>
+  <div class="tip"><p class="lbl">-cover.jpg 를 직접 올립니다</p><p>렌더할 때 <code class="inl">renders/</code> 안에 클립마다 <code class="inl">clip-01-cover.jpg</code> 같은 파일이 자동으로 같이 생깁니다. 업로드 화면의 "커버 사진"에서 기본 후보가 검게 보이면 그대로 두지 말고 <strong>"컴퓨터에서 선택"</strong>을 눌러 이 파일을 직접 올립니다. 영상 안에서 프레임을 긁어 고르는 것보다 게시 후에도 훨씬 안정적으로 유지됩니다.</p></div>
+  <p>방금 올렸는데 <strong>프로필 화면(격자)에서만 잠깐 검게 보이는 건 다른 문제입니다</strong> — 게시물을 직접 열어보면 정상인데 격자 썸네일만 그렇다면, 인스타그램이 격자용 썸네일을 몇 분 늦게 만드는 것뿐입니다. 새로고침하면 곧 정상으로 바뀝니다.</p>
 </section>
 
 <section>
@@ -489,7 +495,7 @@ $</code></div><p>붙여넣기는 <code class="inl">Ctrl</code>+<code class="inl"
 </div>
 
 <footer>
-  <p>저장소 <code class="inl">Kairose-master/shorts-factory</code> · 브랜치 <code class="inl">claude/shorts-creation-automation-0xaii8</code></p>
+  <p>저장소 <code class="inl">sunki2024-star/shorts-factory</code> · 브랜치 <code class="inl">claude/shorts-creation-automation-0xaii8</code></p>
   <p>OS별 자세한 설치 안내는 <code class="inl">docs/설치-맥.md</code> · <code class="inl">docs/설치-윈도우.md</code></p>
 </footer>
 

@@ -111,6 +111,31 @@ fi
 # `python -m yt_dlp` always works, and that is the fallback the pipeline uses.
 yt-dlp --version 2>/dev/null || python -m yt_dlp --version
 
+# --------------------------------------------------------------- deno ------
+# yt-dlp now has to run a bit of YouTube's own JavaScript to get past its "n"
+# challenge before it can hand back a real download link. deno is the JS
+# runtime yt-dlp looks for by default; without one, extraction is deprecated
+# and yt-dlp warns that some formats may be missing or the download may fail
+# outright. See https://github.com/yt-dlp/yt-dlp/wiki/EJS.
+say "deno (yt-dlp's JS runtime for YouTube)"
+if ! command -v deno >/dev/null 2>&1; then
+  if [ "$OS" = mac ]; then
+    brew install deno
+  elif [ "$OS" = windows ]; then
+    powershell -NoProfile -Command "irm https://deno.land/install.ps1 | iex" \
+      || warn "deno 설치 실패 — https://docs.deno.com/runtime/getting_started/installation/ 참고"
+  else
+    curl -fsSL https://deno.land/install.sh | sh -s -- -y \
+      || warn "deno 설치 실패 — https://docs.deno.com/runtime/getting_started/installation/ 참고"
+    export PATH="$HOME/.deno/bin:$PATH"
+  fi
+fi
+if command -v deno >/dev/null 2>&1; then
+  deno --version | head -1
+else
+  warn "deno 못 찾음 — yt-dlp가 유튜브 다운로드 중 일부 화질을 못 받거나 실패할 수 있다"
+fi
+
 # ------------------------------------------------------------ Korean font ----
 # Without a CJK face libass burns Korean as tofu. Google Fonts is blocked in
 # the cloud container but the npm registry is not, and @fontsource ships the

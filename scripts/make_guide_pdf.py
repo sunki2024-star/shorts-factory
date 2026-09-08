@@ -27,6 +27,41 @@ with sync_playwright() as pw:
         except Exception:
             print(f"  {src}: 폰트 대기 실패 — 그대로 진행")
         time.sleep(1.0)
+
+        # 종이(PDF)에서 명령어 줄이 화면 폭에 안 맞아 줄바꿈되면, 그 줄을
+        # 그대로 긁어 터미널에 붙였을 때 진짜 개행 문자가 끼어들어가 명령어가
+        # 반토막나 실행된다 (실제로 이렇게 실패한 사례가 있었음). 인쇄용
+        # 본문 폭(A4 - 좌우 여백)을 뷰포트로 잡고 명령어 글자 크기를 한 줄에
+        # 들어갈 때까지 줄여서, 어떤 명령어도 PDF 안에서 줄바꿈되지 않게 한다.
+        content_w_px = round((210 - 14 - 14) / 25.4 * 96)  # A4 폭 - 좌우 14mm 여백
+        page.set_viewport_size({"width": content_w_px, "height": 1200})
+        page.emulate_media(media="print")
+        wrapped = page.evaluate(
+            """() => {
+                const fixed = [];
+                document.querySelectorAll('.cmd code, .out code').forEach((el, i) => {
+                    el.style.whiteSpace = 'pre';  // 줄바꿈 금지 상태로 실제 폭을 측정
+                    let size = parseFloat(getComputedStyle(el).fontSize);
+                    const floor = 6.5;
+                    let shrunk = false;
+                    while (el.scrollWidth > el.clientWidth + 1 && size > floor) {
+                        size -= 0.25;
+                        el.style.fontSize = size + 'px';
+                        shrunk = true;
+                    }
+                    if (el.scrollWidth > el.clientWidth + 1) {
+                        fixed.push({i, ok: false, text: el.textContent.slice(0, 40)});
+                    } else if (shrunk) {
+                        fixed.push({i, ok: true, size});
+                    }
+                });
+                return fixed;
+            }"""
+        )
+        for w in wrapped:
+            if w.get("ok") is False:
+                print(f"  ⚠ {src}: 줄여도 한 줄에 안 들어가는 명령어 — {w['text']}…")
+
         page.pdf(path=str(HERE.parent / "docs" / "pdf" / out), format="A4",
                  print_background=True,
                  margin={"top": "16mm", "bottom": "18mm", "left": "14mm", "right": "14mm"},

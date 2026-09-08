@@ -1709,7 +1709,13 @@ def cmd_select(args):
     crop = auto_crop(src, win[0], win[1], fallback=(win[0], win[1]))
     ec = ensure_end_card(d, args.idea_id) or (d / "end-card.json")
     meta = json.loads(ec.read_text(encoding="utf-8")) if ec.exists() else {}
-    desc_tail = (f"{meta.get('church','')} 주일예배 | {meta.get('scripture','')} | "
+    # WED/DAWN productions were shipping with "주일예배" hardcoded here even
+    # though end_card_from_title already knows better (SUN/WED/DAWN prefix on
+    # the idea-id) — read it from the same place rather than assuming Sunday.
+    kind_m = re.match(r"(SUN|WED|DAWN)-", args.idea_id)
+    service_label = {"SUN": "주일예배", "WED": "수요예배",
+                      "DAWN": "새벽기도"}.get(kind_m.group(1) if kind_m else "", "주일예배")
+    desc_tail = (f"{meta.get('church','')} {service_label} | {meta.get('scripture','')} | "
                  f"{meta.get('preacher','')}").strip(" |")
 
     clips = []
@@ -2459,6 +2465,16 @@ def cmd_render(args):
             lst.unlink()
             body.unlink()
 
+        # 인스타그램 등 컴퓨터 업로드 화면은 자동 썸네일 후보 중 하나가
+        # 종종 검은 프레임으로 잘못 뽑힌다 (모바일 앱 업로드에서는 안 그런다).
+        # 커버 프레임을 정지 이미지로 따로 뽑아두면, 업로드 화면에서 영상
+        # 타임라인을 긁는 대신 "컴퓨터에서 선택"으로 이 파일을 바로 커버로
+        # 올릴 수 있어 그 문제를 완전히 우회한다.
+        cover = out.with_name(f"{cid}-cover.jpg")
+        run([*ffmpeg_cmd(), "-y", "-hide_banner", "-loglevel", "error",
+             "-ss", "0.05", "-i", str(out), "-frames:v", "1", "-q:v", "2",
+             str(cover)])
+
         made.append((cid, out, c))
 
     check_sheet = out_dir / "_check.png"
@@ -2622,6 +2638,10 @@ def cmd_doctor(_args):
     print(f"  {'OK  ' if ydl else 'MISS'}  {'yt-dlp':<12} "
           f"{' '.join(ydl) if ydl else '— not installed'}")
 
+    dn = _exe("deno")
+    print(f"  {'OK  ' if dn else 'MISS'}  {'deno':<12} "
+          f"{dn or '— yt-dlp가 유튜브 JS 챌린지를 못 풀어 다운로드가 실패할 수 있다 (brew install deno)'}")
+
     wh = whisper_cmd()
     print(f"  {'OK  ' if wh else 'MISS'}  {'whisper':<12} {wh or '— not installed'}")
 
@@ -2664,7 +2684,7 @@ def cmd_doctor(_args):
         print("      bash scripts/setup_render_env.sh --with-whisper")
     else:
         print("전사 수단이 없다 → bash scripts/setup_render_env.sh --with-whisper")
-    if not (ff and ydl and fonts):
+    if not (ff and ydl and dn and fonts):
         print("렌더 도구가 빠졌다 → bash scripts/setup_render_env.sh")
     if ff and not has_subtitles_filter(ff):
         print()

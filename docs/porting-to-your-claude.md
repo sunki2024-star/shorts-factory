@@ -33,7 +33,7 @@
 
 ```bash
 git clone -b claude/shorts-creation-automation-0xaii8 \
-  https://github.com/Kairose-master/shorts-factory
+  https://github.com/sunki2024-star/shorts-factory
 cd shorts-factory
 ```
 
