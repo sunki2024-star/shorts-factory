@@ -1591,6 +1591,30 @@ SELECT_PROMPT = """너는 한국 개신교 교회의 주일설교에서 유튜�
 """
 
 
+# 2026년부터 이 채널의 새벽기도 영상 제목에는 설교 제목이 빠지고 본문만 남았다
+# ("2026-9-8[시119:105-120]/새벽기도/장선기 목사"). end_card_from_title() 이
+# 그런 제목에서 title=="" 을 돌려주면, 엔드카드를 빈 제목으로 두는 대신 전사본을
+# 읽고 그 설교를 관통하는 주제를 대신 짓는다.
+THEME_TITLE_PROMPT = """너는 한국 개신교 교회의 설교 전사본을 보고, 그 설교를 관통하는 제목을 하나 짓는다.
+
+아래는 설교 전사본이다. 각 줄은 [초] 형식의 절대 시각과 발화다.
+
+{transcript}
+
+설교 전체를 관통하는 핵심 메시지를 짧은 제목으로 만든다. 규칙:
+
+1. 8~16자 내외의 한 문장. 설교자가 실제로 강조한 요지를 담는다.
+2. 본문을 그대로 베끼지 말고, 청중에게 요약해 전달하듯 짓는다.
+   (참고 — 이 설교자가 실제로 쓴 제목들: "예수님이 죽었다 살았다의 의미",
+   "하나님은 예비하신다.", "택하신 곳으로 나아가야 하는 이유")
+3. 물음표·느낌표·따옴표 없이, 평서형 명사구나 짧은 문장으로.
+4. 성경 인명·지명을 나열하지 말고, 그 설교가 오늘의 삶에 주는 메시지를 담는다.
+
+**JSON 하나만 출력한다. 설명 문장, 코드펜스, 그 외 아무것도 붙이지 말 것.**
+형식: {{"title": "..."}}
+"""
+
+
 def _extract_json(text: str):
     """Pull the JSON out of a model reply that may be wrapped in prose."""
     text = text.strip()
@@ -1970,6 +1994,40 @@ def source_title(d: Path) -> str:
     return hit["title"] if hit else ""
 
 
+def theme_title_from_transcript(d: Path, backend: str = "auto") -> str:
+    """When the channel's own title carries no sermon title, ask whichever
+    model is on this machine to name the theme instead of leaving the end
+    card's title blank.
+
+    Reads the same sermon window cmd_select reads, for the same reason: the
+    worship set and announcements would skew what the sermon is "about".
+    Best-effort — no transcript yet, no model available, a bad reply: all of
+    those just mean no theme title this time, not a broken end card.
+    """
+    tp = d / "transcript.json"
+    if not tp.exists():
+        return ""
+    try:
+        data = json.loads(tp.read_text(encoding="utf-8"))
+        segs = data["segments"]
+    except (OSError, json.JSONDecodeError, KeyError):
+        return ""
+    w = data.get("sermon_window")
+    win = (w["start"], w["end"]) if w else (segs[0]["start"], segs[-1]["end"])
+    lines = "\n".join(f"[{s['start']:.1f}] {s['text']}"
+                       for s in segs if win[0] <= s["start"] <= win[1])
+    if not lines.strip():
+        return ""
+    prompt = THEME_TITLE_PROMPT.format(transcript=lines)
+    try:
+        result = ask_json(prompt, backend=backend)
+    except Exception as e:  # noqa: BLE001 — a missing title beats a crashed render
+        print(f"    (설교 주제 제목 생성 실패, 건너뜀: {str(e)[:80]})")
+        return ""
+    title = result.get("title", "") if isinstance(result, dict) else ""
+    return re.sub(r"\s{2,}", " ", str(title)).strip(" \t\"'\u201c\u201d\u2018\u2019")
+
+
 def ensure_end_card(d: Path, idea_id: str) -> Path | None:
     """Write end-card.json if it is not there yet.
 
@@ -1987,6 +2045,11 @@ def ensure_end_card(d: Path, idea_id: str) -> Path | None:
               "(end-card.json 을 직접 만들면 붙는다)")
         return None
     cfg = end_card_from_title(idea_id, title)
+    if not cfg["title"]:
+        theme = theme_title_from_transcript(d)
+        if theme:
+            cfg["title"] = theme
+            print(f"    엔드카드 제목: 원본 제목이 없어 전사본에서 주제를 지었다 — {theme}")
     ec.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"    엔드카드 생성 — {cfg['date']} · {cfg['scripture']} · {cfg['title']}")
     return ec
