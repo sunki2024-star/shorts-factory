@@ -1970,6 +1970,17 @@ def source_title(d: Path) -> str:
     return hit["title"] if hit else ""
 
 
+def book_title_from_scripture(scripture: str) -> str:
+    """"시편 119:105-120" -> "시편 강해".
+
+    2026년 새벽기도처럼 원본 제목에 설교 제목이 없을 때 쓴다. 설교 내용을
+    보고 제목을 짓지 않는다 — 성경 66권 중 그 책을 강해하는 시리즈라는 사실
+    만으로 충분하고, 매번 같은 책이면 매번 같은 제목이 나오는 편이 낫다.
+    """
+    m = re.match(r"([가-힣]+)", scripture.strip())
+    return f"{m.group(1)} 강해" if m else ""
+
+
 def ensure_end_card(d: Path, idea_id: str) -> Path | None:
     """Write end-card.json if it is not there yet.
 
@@ -1987,6 +1998,11 @@ def ensure_end_card(d: Path, idea_id: str) -> Path | None:
               "(end-card.json 을 직접 만들면 붙는다)")
         return None
     cfg = end_card_from_title(idea_id, title)
+    if not cfg["title"]:
+        book_title = book_title_from_scripture(cfg.get("scripture", ""))
+        if book_title:
+            cfg["title"] = book_title
+            print(f"    엔드카드 제목: 원본 제목이 없어 본문 책 이름으로 채웠다 — {book_title}")
     ec.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"    엔드카드 생성 — {cfg['date']} · {cfg['scripture']} · {cfg['title']}")
     return ec
@@ -2281,6 +2297,46 @@ def crop_filter(mode) -> str:
     return f"crop=w=ih*9/16:h=ih:x={x}:y=0,scale={OUT_W}:{OUT_H}"
 
 
+def write_check_sheet(made: "list[tuple[str, Path, dict]]", out_path: Path) -> None:
+    """One frame from partway through each just-rendered clip, side by side.
+
+    This is the fast way to catch a bad crop — no one in frame, cropped too
+    tight, framed for a stage that has since moved — before anyone uploads
+    it. Reads the *rendered* files, not the source, so title and captions
+    show exactly as a viewer would see them. A crop mistake tends to repeat
+    across the church's actual mistake (a moved pulpit, a wrong guess) more
+    than across clips of the same idea, so one glance across all clips of an
+    idea is usually enough — it is not a substitute for watching the clip.
+    """
+    tile_w, tile_h = 270, 480
+    inputs: list[str] = []
+    filters: list[str] = []
+    labels: list[str] = []
+    n = 0
+    for cid, out, c in made:
+        if not out.exists():
+            continue
+        try:
+            dur = probe_duration(out)
+        except RuntimeError:
+            continue
+        at = min(dur * 0.25, max(dur - 0.1, 0.0))
+        inputs += ["-ss", f"{at:.2f}", "-i", str(out)]
+        filters.append(f"[{n}:v]scale={tile_w}:{tile_h}[t{n}]")
+        labels.append(f"[t{n}]")
+        n += 1
+    if n == 0:
+        return
+    if n == 1:
+        vf = filters[0].rsplit("[t0]", 1)[0]  # "[0:v]scale=...", no stack needed
+        run([*ffmpeg_cmd(), "-y", "-hide_banner", "-loglevel", "error",
+             *inputs, "-vf", vf, "-frames:v", "1", str(out_path)])
+        return
+    vf = ";".join(filters) + ";" + "".join(labels) + f"hstack=inputs={n}"
+    run([*ffmpeg_cmd(), "-y", "-hide_banner", "-loglevel", "error",
+         *inputs, "-filter_complex", vf, "-frames:v", "1", str(out_path)])
+
+
 def cmd_render(args):
     d = need(args.idea_id)
     video = find_source(d)
@@ -2437,6 +2493,13 @@ def cmd_render(args):
 
         made.append((cid, out, c))
 
+    check_sheet = out_dir / "_check.png"
+    try:
+        write_check_sheet(made, check_sheet)
+    except Exception as e:  # noqa: BLE001 — a bad preview must never fail the render
+        print(f"    (확인용 미리보기 생성 실패, 무시함: {e})")
+        check_sheet = None
+
     # Human-facing package. Renders are gitignored; this file is the record.
     # It is written from every clip in clips.json, not just the ones rendered
     # this run — a `--only` re-render used to leave a package listing one clip
@@ -2469,6 +2532,9 @@ def cmd_render(args):
 
     print(f"\n==> {len(made)} clip(s) in {rel(out_dir)}")
     print(f"==> 승인용 패키지: {rel(d / 'publish-package.md')}")
+    if check_sheet and check_sheet.exists():
+        print(f"==> 화면 확인:     {rel(check_sheet)}  "
+              "(클립마다 한 프레임씩 — 사람이 잘 나오는지 여기서 먼저 훑어본다)")
     if used_override:
         print(f"==> 자막은 {rel(d / 'captions')} 의 수정본을 썼다 "
               f"({used_override}개 클립)")
@@ -2485,6 +2551,8 @@ def cmd_render(args):
         print(f"==> {rel(d)} 폴더를 열었다 — renders 와 captions 가 같이 보인다")
     else:
         print(f"==> 폴더를 열려면:  bash scripts/shorts open {args.idea_id}")
+
+    sync_produced_ledger()
 
 
 # ---------------------------------------------------------------- doctor ---
@@ -2859,6 +2927,39 @@ def record_produced(video_id: str, idea_id: str, title: str = "") -> None:
     LEDGER.write_text(
         json.dumps(sorted(led.values(), key=lambda e: e["idea_id"]),
                    ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def sync_produced_ledger() -> None:
+    """Best-effort: push the ledger so the other computer skips what's done.
+
+    Called once, right after a render finishes. Never allowed to fail the
+    render -- no internet, no saved token, someone else pushed in the
+    meantime, this isn't even a git checkout: all of those are fine, they
+    just mean nothing gets synced this time.
+    """
+    try:
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--", str(LEDGER)],
+            cwd=REPO, capture_output=True, text=True, timeout=10)
+        if status.returncode != 0:
+            return  # not a git checkout, or git isn't around
+        if not status.stdout.strip():
+            return  # nothing new to record
+        subprocess.run(["git", "add", "--", str(LEDGER)],
+                        cwd=REPO, capture_output=True, text=True, timeout=10)
+        commit = subprocess.run(
+            ["git", "commit", "-m", "제작 기록 자동 동기화"],
+            cwd=REPO, capture_output=True, text=True, timeout=10)
+        if commit.returncode != 0:
+            return
+        push = subprocess.run(["git", "push"], cwd=REPO,
+                               capture_output=True, text=True, timeout=30)
+        if push.returncode == 0:
+            print("==> 제작 기록을 GitHub에 올렸다 — 다른 컴퓨터도 이 설교는 건너뛴다")
+        else:
+            print("    (제작 기록을 못 올렸다 — 나중에 git push 를 직접 한 번 해 준다)")
+    except Exception:
+        pass
 
 
 def already_produced() -> set[str]:
