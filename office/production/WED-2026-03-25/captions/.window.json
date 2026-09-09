@@ -1,17 +1,17 @@
 {
   "clip-01": {
-    "start": 0.0,
-    "end": 41.6,
-    "sha": "315a42f93e62391f"
+    "start": 140.0,
+    "end": 191.8,
+    "sha": "14e5f34f0fd87aad"
   },
   "clip-02": {
-    "start": 849.1,
-    "end": 916.6,
-    "sha": "c3e4c867879a6fa4"
+    "start": 850.4,
+    "end": 918.9,
+    "sha": "f418bc2c940a8f89"
   },
   "clip-03": {
-    "start": 1703.4,
-    "end": 1760.8,
-    "sha": "f80cb970a4d2e95c"
+    "start": 1702.2,
+    "end": 1758.5,
+    "sha": "85f3f672da5775e1"
   }
 }

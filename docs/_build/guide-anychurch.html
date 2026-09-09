@@ -439,7 +439,7 @@ $</code></div><p>붙여넣기는 <code class="inl">Ctrl</code>+<code class="inl"
   </div>
 
   <h2>그 밖에</h2>
-  <div class="tblwrap"><table><thead><tr><th>고치고 싶은 것</th><th>방법</th></tr></thead><tbody><tr><td>구간의 초를 조정</td><td>clips.json 의 start / end 를 고치고 render</td></tr><tr><td>다른 구간으로 다시</td><td>shorts select &lt;id&gt; --count 3 → render</td></tr><tr><td>설교 구간을 잘못 잡음</td><td>transcript.json 지우고 transcribe &lt;id&gt; --sermon-window 0:45:00 1:20:00</td></tr><tr><td>화면이 치우쳐 잘림</td><td>clips.json 의 crop 을 직접 준다 — 아래 참조</td></tr><tr><td>엔드카드 내용</td><td>end-card.json 을 고치고 render</td></tr>
+  <div class="tblwrap"><table><thead><tr><th>고치고 싶은 것</th><th>방법</th></tr></thead><tbody><tr><td>구간의 초를 조정</td><td>clips.json 의 start / end 를 고치고 render</td></tr><tr><td>다른 구간으로 다시 / 더 뽑기</td><td>shorts select &lt;id&gt; --count 5 → render — 아래 "더 뽑고 싶을 때" 참조</td></tr><tr><td>설교 구간을 잘못 잡음</td><td>transcript.json 지우고 transcribe &lt;id&gt; --sermon-window 0:45:00 1:20:00</td></tr><tr><td>화면이 치우쳐 잘림</td><td>clips.json 의 crop 을 직접 준다 — 아래 참조</td></tr><tr><td>엔드카드 내용</td><td>end-card.json 을 고치고 render</td></tr>
 <tr><td>릴스 썸네일이 검게 나옴</td><td>renders/ 의 -cover.jpg 를 "컴퓨터에서 선택"으로 직접 올린다 — 위 참조</td></tr><tr><td>엔드카드 빼기</td><td>render &lt;id&gt; --no-end-card</td></tr><tr><td>제목 크기</td><td>TITLE_SIZE=110 을 앞에 붙여 render (기본 92)</td></tr><tr><td>폴더 창 안 뜨게</td><td>render 뒤에 --no-open. 늘 그러려면 SHORTS_NO_OPEN=1</td></tr><tr><td>용량이 찰 때</td><td>source/ 폴더만 지운다 — 아래 참조</td></tr></tbody></table></div>
 </section>
 
@@ -460,6 +460,17 @@ $</code></div><p>붙여넣기는 <code class="inl">Ctrl</code>+<code class="inl"
   <p>핸드폰 앱으로 올리면 괜찮은데 <strong>컴퓨터로 올리면</strong> 커버 후보 중 하나가 가끔 검은 프레임으로 잘못 뽑힙니다. 영상 파일은 멀쩡합니다 — 인스타그램이 컴퓨터 업로드를 처리하는 방식의 문제입니다.</p>
   <div class="tip"><p class="lbl">-cover.jpg 를 직접 올립니다</p><p>렌더할 때 <code class="inl">renders/</code> 안에 클립마다 <code class="inl">clip-01-cover.jpg</code> 같은 파일이 자동으로 같이 생깁니다. 업로드 화면의 "커버 사진"에서 기본 후보가 검게 보이면 그대로 두지 말고 <strong>"컴퓨터에서 선택"</strong>을 눌러 이 파일을 직접 올립니다. 영상 안에서 프레임을 긁어 고르는 것보다 게시 후에도 훨씬 안정적으로 유지됩니다.</p></div>
   <p>방금 올렸는데 <strong>프로필 화면(격자)에서만 잠깐 검게 보이는 건 다른 문제입니다</strong> — 게시물을 직접 열어보면 정상인데 격자 썸네일만 그렇다면, 인스타그램이 격자용 썸네일을 몇 분 늦게 만드는 것뿐입니다. 새로고침하면 곧 정상으로 바뀝니다.</p>
+</section>
+
+<section>
+  <p class="eyebrow">편수</p>
+  <h2>쇼츠를 3편보다 더 뽑고 싶을 때</h2>
+  <p>숫자만 바꿔서 다시 돌리면 됩니다. 예를 들어 5편을 원하면 다음 두 줄이면 됩니다.</p>
+  <div class="cmd"><code>bash scripts/shorts select &lt;id&gt; --count 5</code><button class="copy" type="button">복사</button></div>
+  <div class="cmd"><code>bash scripts/shorts render &lt;id&gt;</code><button class="copy" type="button">복사</button></div>
+  <div class="note"><p class="lbl">이미 올린 편은 통째로 새로 골라집니다</p><p><code class="inl">select</code> 는 매번 대본 전체를 처음부터 다시 읽고 고릅니다. 3편을 그대로 두고 2편만 "추가"해 주는 게 아니라 5편을 통째로 새로 고릅니다 — 이미 올린 편이 있다면 겹치거나 조금 달라질 수 있습니다.</p></div>
+  <p>이미 올린 편은 그대로 두고 싶다면, <code class="inl">clips.json</code> 을 열어 새 구간(<code class="inl">clip-04</code>, <code class="inl">clip-05</code> …)만 직접 추가하고 기존 clip-01~03은 손대지 않습니다. 새 구간의 시작·끝 시각은 같은 폴더의 <code class="inl">transcript.srt</code> 를 보고 고르거나, Claude에게 "이 설교에서 몇 편 더 뽑아줘"라고 하면 대본을 읽고 좋은 구간을 골라 넣어 줍니다. 추가한 뒤엔 똑같이 render 만 다시 돌리면 됩니다.</p>
+  <p>한 설교에서 너무 많이(8~10편 이상) 뽑으려 하면 완결된 좋은 구간이 부족해져 품질이 떨어지는 편이 섞여 나올 수 있습니다. 보통 설교 한 편당 4~5편이 적당합니다.</p>
 </section>
 
 <section>
