@@ -2911,7 +2911,10 @@ def load_ledger() -> dict[str, dict]:
         return {e["video_id"]: e for e in json.loads(LEDGER.read_text(encoding="utf-8"))
                 if e.get("video_id")}
     except (json.JSONDecodeError, TypeError, KeyError):
-        print(f"    {rel(LEDGER)} 를 못 읽었다 — 폴더만 보고 판단한다")
+        # stdout이 아니라 stderr로: sermons --pick 은 stdout을
+        # $(...)로 그대로 캡처하는 계약이라, 여기 섞이면 URL 자리에
+        # 이 문장이 들어가 weekly_run.sh가 "URL이 아니다"로 죽는다.
+        print(f"    {rel(LEDGER)} 를 못 읽었다 — 폴더만 보고 판단한다", file=sys.stderr)
         return {}
 
 
@@ -2924,9 +2927,11 @@ def record_produced(video_id: str, idea_id: str, title: str = "") -> None:
     led[video_id] = {"video_id": video_id, "idea_id": idea_id, "title": title,
                      "recorded": _dt.date.today().isoformat()}
     LEDGER.parent.mkdir(parents=True, exist_ok=True)
-    LEDGER.write_text(
+    tmp = LEDGER.with_suffix(".json.tmp")
+    tmp.write_text(
         json.dumps(sorted(led.values(), key=lambda e: e["idea_id"]),
                    ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, LEDGER)  # 원자적 교체 — 쓰다 만 상태로 읽히지 않는다
 
 
 def sync_produced_ledger() -> None:
