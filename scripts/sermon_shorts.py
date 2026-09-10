@@ -2108,6 +2108,18 @@ STILL_ENERGY = 300
 MAX_TOP_TRIM = 0.30             # never throw away more than this much of the height
 HEADROOM = 0.12                 # keep this much of the frame above him
 
+# motion_box() is measured once over the whole sermon (comment above its call
+# site explains why), which means one contaminated moment anywhere in 30+
+# minutes — a graphic, a cutaway, a pan — can drag the aggregate off the
+# preacher even though he never moved. SUN-2025-07-06 did exactly this: the
+# preacher stood in the same spot the entire sermon, but the sermon-wide
+# motion box still centred 62px off him. A skin-tone check run per *clip*
+# (a real 30-70s window we already trust the content of) is not subject to
+# that half-hour of contamination, so it catches this class of miss that
+# motion_box structurally can't.
+FACE_W, FACE_H = 192, 108
+FACE_SAMPLES = 8
+
 
 def _gray_frame(video: Path, at: float) -> bytes | None:
     p = subprocess.run(
@@ -2218,6 +2230,75 @@ def sermon_window_of(d: Path) -> tuple[float, float] | None:
     return (float(w["start"]), float(w["end"])) if w else None
 
 
+def _rgb_frame(video: Path, at: float, w: int = FACE_W, h: int = FACE_H) -> bytes | None:
+    p = subprocess.run(
+        [*ffmpeg_cmd(), "-hide_banner", "-loglevel", "error", "-ss", f"{at:.2f}",
+         "-i", str(video), "-frames:v", "1",
+         "-vf", f"scale={w}:{h}", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"],
+        capture_output=True)
+    return p.stdout if len(p.stdout) == w * h * 3 else None
+
+
+def _face_centre_x(video: Path, start: float, end: float | None,
+                   y_band: tuple[float, float] = (0.0, 1.0)) -> float | None:
+    """Median x (0..1) of a face-sized skin-toned blob, sampled across the clip.
+
+    Not a face detector — just skin colour, boxed to the clip's own vertical
+    band and narrowed per-frame to the densest contiguous run so a raised
+    hand or a name tag doesn't pull the centre. Cheap and dependency-free
+    (rawvideo over an ffmpeg pipe, like motion_box()), which matters here:
+    this needs to install on every church's machine, not just this one's.
+    Returns None rather than a shaky guess when too few frames turn up a
+    confident, consistent blob.
+    """
+    try:
+        total = probe_duration(video)
+    except Exception:  # noqa: BLE001
+        return None
+    a, b = max(0.0, start), min(end if end else total, total)
+    span = max(b - a, 1.0)
+    w, h = FACE_W, FACE_H
+    y0 = int(h * max(0.0, min(1.0, y_band[0])))
+    y1 = int(h * max(0.0, min(1.0, y_band[1])))
+    if y1 - y0 < 4:
+        y0, y1 = 0, h
+    win = max(3, w // 12)  # 얼굴 폭 정도(프레임 폭의 ~8%) — 손 등 산발적 오탐을 누른다
+
+    xs: list[float] = []
+    for i in range(FACE_SAMPLES):
+        t = a + span * (i + 0.5) / FACE_SAMPLES
+        buf = _rgb_frame(video, t, w, h)
+        if not buf:
+            continue
+        counts = [0] * w
+        for y in range(y0, y1):
+            row = y * w * 3
+            for x in range(w):
+                o = row + x * 3
+                r, g, bch = buf[o], buf[o + 1], buf[o + 2]
+                mx, mn = max(r, g, bch), min(r, g, bch)
+                if r > 95 and g > 40 and bch > 20 and mx - mn > 15 and r > g and r > bch:
+                    counts[x] += 1
+        if sum(counts) < 20:
+            continue
+        csum = [0] * (w + 1)
+        for x in range(w):
+            csum[x + 1] = csum[x] + counts[x]
+        best_i, best_sum = 0, -1
+        for x in range(0, w - win + 1):
+            s = csum[x + win] - csum[x]
+            if s > best_sum:
+                best_sum, best_i = s, x
+        xs.append((best_i + win / 2) / w)
+
+    if len(xs) < max(3, FACE_SAMPLES // 2):
+        return None  # 너무 적게 잡혔다 — 신뢰 못함
+    xs.sort()
+    if xs[-1] - xs[0] > 0.15:
+        return None  # 흩어져 있다 — 오탐/여러 명일 가능성, 신뢰 못함
+    return xs[len(xs) // 2]
+
+
 def auto_crop(video: Path, start: float = 0.0, end: float | None = None,
               fallback: tuple[float, float] | None = None):
     """Put the preacher in the middle of a 9:16 window.
@@ -2255,6 +2336,23 @@ def auto_crop(video: Path, start: float = 0.0, end: float | None = None,
     ch = h - top
     cw = int(ch * 9 / 16)
     centre = int((x0 + x1) / 2 * w)
+
+    # motion_box() is an energy-weighted average over the whole measured
+    # window — a hand that gestures more to one side than the other pulls it
+    # off the preacher even though he himself never moved (measured on
+    # SUN-2025-07-06: centred 62px off a preacher who stood still the entire
+    # sermon). A skin-toned blob in the top part of the frame is a more
+    # direct read on where his face actually is, so when it comes back
+    # confident and consistent, it wins.
+    face_band = (top / h, top / h + 0.4 * (ch / h))
+    face_frac = _face_centre_x(video, start, end, y_band=face_band)
+    if face_frac is not None:
+        face_centre = int(face_frac * w)
+        if abs(face_centre - centre) > cw * 0.06:
+            print(f"    ⚠ 모션 중심(x={centre})과 얼굴 위치(x={face_centre})가 어긋난다 "
+                  f"— 얼굴 기준으로 보정")
+        centre = face_centre
+
     x = max(0, min(centre - cw // 2, w - cw))
     print(f"    설교자 위치 x {x0:.2f}–{x1:.2f} · y {y0:.2f}–{y1:.2f} "
           f"→ 크롭 x={x} y={top} h={ch}")
