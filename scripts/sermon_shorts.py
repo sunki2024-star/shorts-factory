@@ -2991,7 +2991,13 @@ def list_sermons(preacher: str = SERMON_PREACHER,
 # production is 300 MB of source video, and the obvious way to reclaim that is
 # to delete the folder — which, when the folder *was* the record, quietly made
 # that sermon eligible to be picked again.
-LEDGER = REPO / "office" / "produced.json"
+# 예전엔 office/produced.json 하나에 전체 목록을 매번 다시 써서 커밋했다.
+# 두 컴퓨터가 거의 동시에 서로 다른 설교를 만들면 둘 다 이 한 파일을 고쳐
+# 쓰게 되어 git이 거의 매번 충돌했다 — 실제로 여러 번 겪은 사고. 이제는
+# 설교(영상 id)마다 별도 파일로 나눠서, 서로 다른 설교를 기록할 땐 아예
+# 다른 파일을 건드리게 만들어 충돌 자체가 구조적으로 안 생기게 한다.
+LEDGER_DIR = REPO / "office" / "produced"
+LEDGER = REPO / "office" / "produced.json"  # 예전 형식 — 있으면 한 번만 옮겨 심는다
 
 
 def scan_folders_for_ids() -> dict[str, dict]:
@@ -3014,38 +3020,84 @@ def scan_folders_for_ids() -> dict[str, dict]:
     return found
 
 
-def load_ledger() -> dict[str, dict]:
+def _migrate_old_ledger() -> None:
+    """office/produced.json(파일 하나, 매번 통째로 다시 씀) →
+    office/produced/<video_id>.json(설교 하나당 파일 하나). 옛 파일이 없으면
+    아무것도 안 하는 조용한 함수라 load_ledger()에서 매번 불러도 된다.
+    """
     if not LEDGER.exists():
-        return {}
+        return
     try:
-        return {e["video_id"]: e for e in json.loads(LEDGER.read_text(encoding="utf-8"))
-                if e.get("video_id")}
-    except (json.JSONDecodeError, TypeError, KeyError):
-        # stdout이 아니라 stderr로: sermons --pick 은 stdout을
-        # $(...)로 그대로 캡처하는 계약이라, 여기 섞이면 URL 자리에
-        # 이 문장이 들어가 weekly_run.sh가 "URL이 아니다"로 죽는다.
-        print(f"    {rel(LEDGER)} 를 못 읽었다 — 폴더만 보고 판단한다", file=sys.stderr)
-        return {}
+        entries = json.loads(LEDGER.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return  # 옛 파일이 깨져 있으면 손대지 않는다 — 사람이 봐야 한다
+    LEDGER_DIR.mkdir(parents=True, exist_ok=True)
+    for e in entries:
+        vid = e.get("video_id")
+        if not vid:
+            continue
+        path = LEDGER_DIR / f"{vid}.json"
+        if path.exists():
+            continue  # 새 형식에 이미 있다
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(e, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
+    LEDGER.unlink()
+    print(f"    {rel(LEDGER)} → {rel(LEDGER_DIR)}/ 로 옮겨 심었다 "
+          f"(설교 하나당 파일 하나 — 두 컴퓨터가 동시에 써도 충돌 안 남)")
+
+
+def load_ledger() -> dict[str, dict]:
+    """office/produced/*.json 을 전부 읽어 합친다.
+
+    한 파일에 전부 담아 매번 통째로 다시 쓰던 예전 방식은, 두 컴퓨터가
+    거의 동시에 서로 다른 설교를 기록하면 둘 다 같은 파일을 고쳐 쓰게 되어
+    git이 거의 매번 충돌했다 — 실제로 여러 번 겪은 사고. 설교(영상 id)마다
+    파일을 나누면 서로 다른 설교를 기록할 땐 다른 파일을 건드리게 되어
+    충돌이 구조적으로 안 생긴다.
+    """
+    _migrate_old_ledger()
+    led: dict[str, dict] = {}
+    if not LEDGER_DIR.exists():
+        return led
+    for f in sorted(LEDGER_DIR.glob("*.json")):
+        try:
+            e = json.loads(f.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            # stdout이 아니라 stderr로: sermons --pick 은 stdout을
+            # $(...)로 그대로 캡처하는 계약이라, 여기 섞이면 URL 자리에
+            # 이 문장이 들어가 weekly_run.sh가 "URL이 아니다"로 죽는다.
+            # 파일 하나가 깨져도 나머지는 그대로 쓴다 — 예전처럼 전부
+            # 버리지 않는다.
+            print(f"    {rel(f)} 를 못 읽었다 — 건너뛴다", file=sys.stderr)
+            continue
+        if e.get("video_id"):
+            led[e["video_id"]] = e
+    return led
 
 
 def record_produced(video_id: str, idea_id: str, title: str = "") -> None:
-    """Write one entry into the ledger. Idempotent."""
-    led = load_ledger()
-    if video_id in led and led[video_id].get("title"):
-        return
+    """Write one entry — its own file, so recording two different videos at
+    once (from two computers) never touches the same file. Idempotent."""
+    path = LEDGER_DIR / f"{video_id}.json"
+    if path.exists():
+        try:
+            if json.loads(path.read_text(encoding="utf-8")).get("title"):
+                return
+        except (json.JSONDecodeError, OSError):
+            pass
     import datetime as _dt
-    led[video_id] = {"video_id": video_id, "idea_id": idea_id, "title": title,
-                     "recorded": _dt.date.today().isoformat()}
-    LEDGER.parent.mkdir(parents=True, exist_ok=True)
-    tmp = LEDGER.with_suffix(".json.tmp")
-    tmp.write_text(
-        json.dumps(sorted(led.values(), key=lambda e: e["idea_id"]),
-                   ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, LEDGER)  # 원자적 교체 — 쓰다 만 상태로 읽히지 않는다
+    entry = {"video_id": video_id, "idea_id": idea_id, "title": title,
+             "recorded": _dt.date.today().isoformat()}
+    LEDGER_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(entry, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, path)  # 원자적 교체 — 쓰다 만 상태로 읽히지 않는다
 
 
 def sync_produced_ledger() -> None:
-    """Best-effort: push the ledger so the other computer skips what's done.
+    """Best-effort: push new ledger files so the other computer skips what's
+    done.
 
     Called once, right after a render finishes. Never allowed to fail the
     render -- no internet, no saved token, someone else pushed in the
@@ -3054,13 +3106,13 @@ def sync_produced_ledger() -> None:
     """
     try:
         status = subprocess.run(
-            ["git", "status", "--porcelain", "--", str(LEDGER)],
+            ["git", "status", "--porcelain", "--", str(LEDGER_DIR)],
             cwd=REPO, capture_output=True, text=True, timeout=10)
         if status.returncode != 0:
             return  # not a git checkout, or git isn't around
         if not status.stdout.strip():
             return  # nothing new to record
-        subprocess.run(["git", "add", "--", str(LEDGER)],
+        subprocess.run(["git", "add", "--", str(LEDGER_DIR)],
                         cwd=REPO, capture_output=True, text=True, timeout=10)
         commit = subprocess.run(
             ["git", "commit", "-m", "제작 기록 자동 동기화"],

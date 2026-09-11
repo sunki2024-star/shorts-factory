@@ -374,13 +374,13 @@ h4{font-family:"IBM Plex Sans KR",sans-serif;font-size:.82rem;font-weight:600;
   <div class="cmd"><code>git pull</code><button class="copy" type="button">복사</button></div>
 
   <h3>쇼츠를 만든 뒤 — 기록을 올린다</h3>
-  <div class="cmd"><code>git add office/produced.json</code><button class="copy" type="button">복사</button></div>
+  <div class="cmd"><code>git add office/produced</code><button class="copy" type="button">복사</button></div>
   <div class="cmd"><code>git commit -m "SUN-2026-09-06 만듦"</code><button class="copy" type="button">복사</button></div>
   <div class="cmd"><code>git push</code><button class="copy" type="button">복사</button></div>
-  <div class="note"><p class="lbl">만든 기록을 올려 두지 않으면 같은 설교를 다시 뽑는다</p><p><code class="inl">office/produced.json</code> 이 어떤 설교를 이미 만들었는지 적힌 파일이다. 쇼츠를 만든 뒤 이 파일만 올려 두면 다른 컴퓨터가 그 편을 건너뛴다.</p></div>
+  <div class="note"><p class="lbl">만든 기록을 올려 두지 않으면 같은 설교를 다시 뽑는다</p><p><code class="inl">office/produced/</code> 가 어떤 설교를 이미 만들었는지 적힌 곳이다(설교 하나당 파일 하나). 쇼츠를 만든 뒤 새로 생긴 파일만 올려 두면 다른 컴퓨터가 그 편을 건너뛴다.</p></div>
 
   <h3>무엇이 오가고 무엇이 안 오나</h3>
-  <div class="flow"><div class="row"><span class="what">프로그램 · 문서 · 설정</span><span class="v v-yes">오간다</span></div><div class="row"><span class="what">만든 기록 <code class="inl">produced.json</code></span><span class="v v-yes">오간다</span></div><div class="row"><span class="what">자막 사전 <code class="inl">fix … --remember</code></span><span class="v v-yes">오간다</span></div><div class="row"><span class="what">완성된 MP4 <code class="inl">renders/</code></span><span class="v v-no">안 간다</span></div><div class="row"><span class="what">받아둔 원본 <code class="inl">source/</code></span><span class="v v-no">안 간다</span></div></div>
+  <div class="flow"><div class="row"><span class="what">프로그램 · 문서 · 설정</span><span class="v v-yes">오간다</span></div><div class="row"><span class="what">만든 기록 <code class="inl">office/produced/</code></span><span class="v v-yes">오간다</span></div><div class="row"><span class="what">자막 사전 <code class="inl">fix … --remember</code></span><span class="v v-yes">오간다</span></div><div class="row"><span class="what">완성된 MP4 <code class="inl">renders/</code></span><span class="v v-no">안 간다</span></div><div class="row"><span class="what">받아둔 원본 <code class="inl">source/</code></span><span class="v v-no">안 간다</span></div></div>
   <p>MP4는 만든 컴퓨터에만 있습니다. 집에서 만든 영상을 교회에서 올리시려면 그 파일만 따로 옮기시면 됩니다 — 에어드롭·USB·클라우드 드라이브 무엇이든.</p>
 </section>
 

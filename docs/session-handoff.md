@@ -15,7 +15,7 @@
 | 실행 환경 | 사용자의 맥. `~/shorts-factory` |
 | 비용 | **0원.** yt-dlp로 받고 whisper.cpp large-v3로 전사한다 |
 | API 키 | **필요 없다.** `.env` 를 만들 일이 없다 |
-| 만든 편 | `office/produced.json` — 폴더를 지워도 남는다 |
+| 만든 편 | `office/produced/` — 폴더를 지워도 남는다 |
 | 저장소 | 사용자가 자기 GitHub으로 fork 했다. 원본은 `Kairose-master/shorts-factory` |
 
 두 진입점이 전부다.
@@ -64,7 +64,7 @@ bash scripts/shorts-url.sh "<유튜브주소>"  # 이 설교로
 (`subtitles=<파일>`)을 거부한다.
 
 **정리 명령을 만들지 않았다.** 사용자가 직접 `source/` 만 지운다. 폴더 이름이
-있어야 무엇을 만들었는지 기억하고, 기록은 폴더 밖 `office/produced.json` 에도
+있어야 무엇을 만들었는지 기억하고, 기록은 폴더 밖 `office/produced/` 에도
 남아서 폴더째 지워도 다시 뽑히지 않는다.
 
 ## 절대 바뀌지 않는 규칙
