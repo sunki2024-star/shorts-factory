@@ -390,7 +390,7 @@ footer{margin-top:3.2rem;padding-top:1.4rem;border-top:1px solid var(--rule);
   <p>렌더가 끝나면 <strong>Finder가 저절로 열린다.</strong> 폴더 안이 이렇게 되어 있다.</p>
   <div class="out"><code>SUN-2026-08-09/
 ├── renders/            ← MP4 3편. 여기서 확인한다
-├── captions/           ← 자막이 틀리면 여기를 고친다
+├── captions/            ← 자막이 틀리면 여기를 고친다
 ├── publish-package.md  ← 제목 · 설명문 · 선정 근거
 └── source/             ← 받아둔 원본 (지워도 된다)</code></div>
   <p><code class="inl">renders</code> 안의 MP4 3개를 더블클릭해서 본다. 자막이 틀렸으면 한 단계 올라와 <code class="inl">captions</code> 로 들어가면 된다 — <strong>이미 만들어져 있다.</strong></p>
@@ -483,6 +483,28 @@ footer{margin-top:3.2rem;padding-top:1.4rem;border-top:1px solid var(--rule);
     <p>고치기 전으로 되돌리고 싶으면 그 srt를 지우고 <code class="inl">captions</code> 를 다시 돌린다.</p>
   </div>
 
+  <div class="stack">
+    <h3>엔드카드 글자가 틀렸을 때</h3>
+    <p>카드에 나오는 날짜·본문·제목·설교자·교회명도 자막처럼 파일 하나 고치고 다시 렌더하면 된다.</p>
+    <div class="cmd mac"><code>open -e office/production/SUN-2026-08-09/end-card.json</code><button class="copy" type="button">복사</button></div>
+    <p>파일은 이렇게 생겼다.</p>
+    <div class="out"><code>{
+  "date": "2026년 8월 9일 주일예배",
+  "scripture": "사무엘하 19:31-39",
+  "title": "나이 들면 바르실래처럼",
+  "preacher": "설교 · 장선기 목사",
+  "church": "방배동 예심교회",
+  "handle": "youtube.com/@yeshim1126"
+}</code></div>
+    <p>고치고 싶은 줄만 따옴표 안의 글자를 바꾼다. <code class="inl">title</code> 을 <code class="inl">""</code> 처럼 비워 두면 그 줄이 카드에서 통째로 빠진다 — 설교 제목 없이 본문만 나오게 하고 싶을 때 쓴다.</p>
+    <div class="tip"><p class="lbl">2026년 새벽기도는 이미 채워져 있다</p><p>원본 제목에 설교 제목이 없으면 이 파일이 자동으로 만들어질 때 <code class="inl">title</code> 이 <strong>"본문 책 이름 + 강해 + (전사본을 읽고 지은 부제)"</strong> 로 이미 채워져 있다 — 시편이면 <code class="inl">시편 강해 (선한 목자 되신 하나님)</code> 처럼. 부제는 그 설교의 실제 내용을 읽고 지은 것이라 매번 다르다. 그것도 마음에 안 들면 여기서 바꾸거나 비워 두면 된다.</p></div>
+    <div class="note"><p class="lbl">고친 뒤 반드시 저장한다 — command + S</p><p><code class="inl">end-card.json</code> 이 이미 있으면 렌더가 다시 만들지 않고 고친 그대로 쓴다.</p></div>
+    <div class="cmd mac"><code>bash scripts/shorts render SUN-2026-08-09</code><button class="copy" type="button">복사</button></div>
+    <p>한 편만 다시 만들려면 — 3편 전부 다시 구울 필요가 없다:</p>
+    <div class="cmd mac"><code>bash scripts/shorts render SUN-2026-08-09 --only clip-02</code><button class="copy" type="button">복사</button></div>
+    <p>카드를 통째로 빼고 싶거나, 다섯 항목이 어디서 자동으로 채워지는지는 뒤쪽 <strong>엔드카드</strong> 절을 본다.</p>
+  </div>
+
   <h2>자막이 영상과 안 맞을 때</h2>
   <p>글자는 맞는데 <strong>나오는 때가 어긋나는</strong> 경우다. 말이 끝난 뒤에 자막이 뜨거나, 미리 떠 버린다. 글자가 틀린 것과는 원인이 다르다.</p>
   <div class="tip"><p class="lbl">글자가 틀린 것과 때가 어긋난 것은 다르다</p><p>글자가 틀렸으면 <code class="inl">fix</code> 나 자막 파일 수정이다. 때가 어긋났으면 그 자막 파일이 <strong>다른 구간에 맞춰 만들어진 것</strong>이다 — 구간을 바꾼 뒤 옛 자막이 남아 있을 때 생긴다.</p></div>
@@ -528,7 +550,7 @@ footer{margin-top:3.2rem;padding-top:1.4rem;border-top:1px solid var(--rule);
 
   <h2>화면이 이상하게 잘렸을 때</h2>
   <p>설교자가 한쪽으로 치우쳐 잘렸다면, 그 영상의 화면 배치가 평소와 달랐던 것이다. 예심교회 방송은 <strong>해마다 배치가 바뀌었고</strong> 강단 위치도 주일마다 달라진다.</p>
-  <div class="tip"><p class="lbl">설교자를 찾아서 가운데 놓는다</p><p>고정된 좌표를 쓰지 않는다. 1초 간격 프레임을 설교 구간 여덟 지점에서 비교해 <strong>움직이는 사람</strong>을 찾고 그를 가운데 둔다 — 배경 · 자막 · 그래픽은 움직이지 않으니 구분된다. 새벽기도처럼 <strong>정지 이미지에 음성만</strong> 있는 영상은 사람이 없으므로 자르지 않고 화면 전체를 9:16에 맞춘다.</p></div>
+  <div class="tip"><p class="lbl">설교자를 찾아서 가운데 놓는다</p><p>고정된 좌표를 쓰지 않는다. 1초 간격 프레임을 설교 구간 여덟 지점에서 비교해 <strong>움직이는 사람</strong>을 찾고 그를 가운데 둔다 — 배경 · 자막 · 그래픽은 움직이지 않으니 구분된다. 새벽기도처럼 <strong>정지 이미지에 음성만</strong> 있는 영상은 사람이 없으므로 자르지 않고 화면 전체를 9:16에 맞춘다. 여러 시점을 종합한 값이 실제 위치와 어긋나면(예: 설교자가 안 움직여도 손짓 등 다른 움직임이 더 크게 잡히는 경우) 피부색 기반으로 얼굴 위치를 한 번 더 재서 스스로 보정한다 — 이 보정이 일어나면 터미널에 "⚠ 모션 중심과 얼굴 위치가 어긋난다" 라고 알려 준다.</p></div>
   <p>먼저 <code class="inl">preview</code> 로 지금 어디를 잡고 있는지 사진으로 확인한다. 렌더를 다시 돌리지 않아도 된다.</p>
   <div class="cmd mac"><code>bash scripts/shorts preview SUN-2026-08-09</code><button class="copy" type="button">복사</button></div>
   <p>그래도 어긋났으면 <code class="inl">clips.json</code> 의 <code class="inl">crop</code> 을 직접 준다. 숫자는 원본 영상 기준 픽셀이다.</p>
@@ -552,7 +574,7 @@ footer{margin-top:3.2rem;padding-top:1.4rem;border-top:1px solid var(--rule);
       <span class="c-handle">youtube.com/@yeshim1126</span>
     </div>
     <div class="card-legend">
-      <div><span class="k">자동</span><span class="v">유튜브 영상 제목에서 다섯 가지를 뽑아 저절로 만든다</span></div>
+      <div><span class="k">자동</span><span class="v">유튜브 영상 제목에서 다섯 가지를 뽑아 저절로 만든다. 원본 제목에 설교 제목이 없으면(2026년 새벽기도 등) 본문 책 이름 + 전사본을 읽고 지은 부제로 대신 채운다 — 시편이면 "시편 강해 (선한 목자 되신 하나님)" 처럼</span></div>
       <div><span class="k">본문</span><span class="v">풀어서 쓴다 — 삼하 → 사무엘하. 그래야 검색된다</span></div>
       <div><span class="k">날짜</span><span class="v">제목이 아니라 폴더 이름에서 가져온다</span></div>
     </div>
@@ -563,6 +585,7 @@ footer{margin-top:3.2rem;padding-top:1.4rem;border-top:1px solid var(--rule);
     <div class="cmd mac"><code>bash scripts/shorts render SUN-2026-08-09</code><button class="copy" type="button">복사</button></div>
     <p>아예 빼고 싶으면:</p>
     <div class="cmd mac"><code>bash scripts/shorts render SUN-2026-08-09 --no-end-card</code><button class="copy" type="button">복사</button></div>
+    <p>글자 하나하나(날짜·본문·제목 등)를 자막처럼 고치는 자세한 방법은 위쪽 <strong>3부 · 고치기</strong>의 "엔드카드 글자가 틀렸을 때"를 본다.</p>
   </div>
 
   <h2>용량이 찰 때 — 원본만 지운다</h2>
@@ -583,7 +606,7 @@ footer{margin-top:3.2rem;padding-top:1.4rem;border-top:1px solid var(--rule);
 ├── transcript.json     남긴다
 ├── clips.json          남긴다
 └── meta.json           남긴다 — 어떤 영상이었는지</code></div>
-  <div class="tip"><p class="lbl">폴더를 통째로 지워도 다시 뽑히지 않는다</p><p>만든 기록은 폴더 밖 <code class="inl">office/produced/</code> 에도 따로 남는다. 실수로 폴더 안을 다 비워도, 폴더째 지워도 그 설교는 목록에서 계속 빠진다. 실제로 지워 보고 확인한 동작이다.</p></div>
+  <div class="tip"><p class="lbl">폴더를 통째로 지워도 다시 뽑히지 않는다</p><p>만든 기록은 폴더 밖 <code class="inl">office/produced/</code> 에도 따로 남는다(설교 하나당 파일 하나). 실수로 폴더 안을 다 비워도, 폴더째 지워도 그 설교는 목록에서 계속 빠진다. 실제로 지워 보고 확인한 동작이다.</p></div>
   <p>터미널이 편하면:</p>
   <div class="cmd mac"><code>rm -rf office/production/SUN-2026-08-09/source</code><button class="copy" type="button">복사</button></div>
   <p>원본이 다시 필요하면 같은 주소로 받으면 된다. 기록이 있어도 <strong>주소를 직접 주면 받는다</strong> — 막지 않는다. 전사본과 자막이 남아 있으면 전사도 다시 하지 않는다.</p>
@@ -611,7 +634,7 @@ footer{margin-top:3.2rem;padding-top:1.4rem;border-top:1px solid var(--rule);
       </tbody>
     </table></div>
   <p>그래도 안 되면 <strong>터미널 에 나온 글자를 그대로 복사해서</strong> Claude에게 붙여넣는다. 어디서 멈췄는지가 그 안에 다 있다.</p>
-  
+
 </section>
 
 <section>

@@ -447,7 +447,7 @@ $</code></div><p>붙여넣기는 <code class="inl">Ctrl</code>+<code class="inl"
   <p class="eyebrow">화면</p>
   <h2>설교자를 찾아서 가운데 놓습니다</h2>
   <p>세로 화면은 가로 영상의 3분의 1만 씁니다. 어디를 남길지가 중요한데, <strong>고정된 좌표를 쓰지 않습니다.</strong> 교회마다, 해마다, 주일마다 강단 위치가 다르기 때문입니다.</p>
-  <div class="tip"><p class="lbl">무엇을 보고 판단하는가</p><p>1초 간격 프레임을 설교 구간 여덟 지점에서 비교해 <strong>움직이는 사람</strong>을 찾습니다 — 배경 · 자막 · 그래픽은 움직이지 않으니 구분됩니다. 새벽기도처럼 <strong>정지 이미지에 음성만</strong> 있는 영상은 사람이 없으므로 자르지 않고 화면 전체를 9:16에 맞춥니다.</p></div>
+  <div class="tip"><p class="lbl">무엇을 보고 판단하는가</p><p>1초 간격 프레임을 설교 구간 여덟 지점에서 비교해 <strong>움직이는 사람</strong>을 찾습니다 — 배경 · 자막 · 그래픽은 움직이지 않으니 구분됩니다. 새벽기도처럼 <strong>정지 이미지에 음성만</strong> 있는 영상은 사람이 없으므로 자르지 않고 화면 전체를 9:16에 맞춥니다. 여러 시점을 종합한 값이 실제 위치와 어긋나면(예: 설교자가 안 움직여도 손짓 등 다른 움직임이 더 크게 잡히는 경우) 피부색 기반으로 얼굴 위치를 한 번 더 재서 스스로 보정합니다 — 이 보정이 일어나면 터미널에 "⚠ 모션 중심과 얼굴 위치가 어긋난다" 라고 알려 줍니다.</p></div>
   <p>먼저 <code class="inl">preview</code> 로 지금 어떻게 잡혔는지 보고, 그래도 어긋나면 <code class="inl">clips.json</code> 의 <code class="inl">crop</code> 을 직접 줍니다. 숫자는 원본 영상 기준 픽셀입니다.</p>
   <div class="out"><code>"crop": { "x": 126, "y": 108, "h": 252 }
 
@@ -486,7 +486,7 @@ $</code></div><p>붙여넣기는 <code class="inl">Ctrl</code>+<code class="inl"
 ├── transcript.json     남긴다
 ├── clips.json          남긴다
 └── meta.json           남긴다 — 어떤 영상이었는지</code></div>
-  <div class="tip"><p class="lbl">폴더를 통째로 지워도 다시 뽑히지 않습니다</p><p>만든 기록은 폴더 밖 <code class="inl">office/produced/</code> 에도 따로 남습니다. 실수로 폴더 안을 다 비워도, 폴더째 지워도 그 설교는 목록에서 계속 빠집니다. 실제로 지워 보고 확인한 동작입니다.</p></div>
+  <div class="tip"><p class="lbl">폴더를 통째로 지워도 다시 뽑히지 않습니다</p><p>만든 기록은 폴더 밖 <code class="inl">office/produced/</code> 에도 따로 남습니다(설교 하나당 파일 하나). 실수로 폴더 안을 다 비워도, 폴더째 지워도 그 설교는 목록에서 계속 빠집니다. 실제로 지워 보고 확인한 동작입니다.</p></div>
   <p>원본이 다시 필요하면 같은 주소로 받으면 됩니다. 기록이 있어도 <strong>주소를 직접 주면 받습니다.</strong> 전사본과 자막이 남아 있으면 전사도 다시 하지 않습니다.</p>
 </section>
 
