@@ -1985,12 +1985,62 @@ def source_title(d: Path) -> str:
 def book_title_from_scripture(scripture: str) -> str:
     """"시편 119:105-120" -> "시편 강해".
 
-    2026년 새벽기도처럼 원본 제목에 설교 제목이 없을 때 쓴다. 설교 내용을
-    보고 제목을 짓지 않는다 — 성경 66권 중 그 책을 강해하는 시리즈라는 사실
-    만으로 충분하고, 매번 같은 책이면 매번 같은 제목이 나오는 편이 낫다.
+    2026년 새벽기도처럼 원본 제목에 설교 제목이 없을 때 쓴다. 이 부분 자체는
+    설교 내용을 보고 짓지 않는다 — 성경 66권 중 그 책을 강해하는 시리즈라는
+    사실만으로 충분하고, 매번 같은 책이면 매번 같은 제목이 나오는 편이 낫다.
+    (내용을 읽고 짓는 제목은 이 뒤에 괄호로 따로 붙는다 — suggest_sermon_title 참고.)
     """
     m = re.match(r"([가-힣]+)", scripture.strip())
     return f"{m.group(1)} 강해" if m else ""
+
+
+SUGGEST_TITLE_PROMPT = """다음은 한국 개신교 설교의 전사본이다. 본문은 {scripture}.
+
+{transcript}
+
+이 설교 하나에 어울리는, 그 설교만의 구체적인 제목을 하나 짓는다. 규칙:
+
+1. **{max_len}자 이내**로 짧게 — 엔드카드에 괄호로 덧붙일 부제라 너무 길면 안 된다.
+2. "믿음의 사람", "축복의 통로", "은혜의 삶"처럼 어느 설교에나 붙일 수 있는
+   상투적 문구를 쓰지 말 것 — 이 설교가 실제로 무엇을 말했는지 담는다.
+3. 설교자가 반복해서 강조한 문장이나 표현이 있으면 그것을 살려서 짓는다.
+4. 완전한 문장이 아니어도 된다 — 명사구로 끝나도 좋다.
+
+JSON만 출력한다. 설명 문장, 코드펜스, 그 외 아무것도 붙이지 말 것.
+형식: {{"title": "..."}}
+"""
+
+
+def suggest_sermon_title(segments: list[dict], scripture: str, max_len: int = 14) -> str:
+    """Read the transcript and propose a subtitle for the book-name fallback.
+
+    `book_title_from_scripture()` gives an accurate but flat title
+    ("시편 강해") when the original video carries no sermon title of its
+    own. This reads the sermon itself and proposes a short, specific
+    subtitle to put in parentheses after it, so the end card still names
+    what THIS sermon was about rather than only which book it is in.
+
+    Best-effort: no model available, a bad reply, or anything else going
+    wrong here falls back to an empty string (caller then keeps the book
+    name alone) — never blocks end-card generation.
+    """
+    text = " ".join(s.get("text", "") for s in segments).strip()
+    if not text:
+        return ""
+    # A full sermon's plain text easily exceeds a comfortable prompt size;
+    # the opening usually states the theme and the closing usually applies
+    # it, so keep those and drop the (typically less title-bearing) middle.
+    if len(text) > 12000:
+        text = text[:6000] + " (…중략…) " + text[-6000:]
+    prompt = SUGGEST_TITLE_PROMPT.format(
+        scripture=scripture or "", transcript=text, max_len=max_len)
+    try:
+        result = ask_json(prompt)
+        title = str(result.get("title", "")).strip(" \t\"'()")
+    except Exception as e:  # noqa: BLE001 — best-effort, never blocks the card
+        print(f"    설교 제목 제안 실패 — 책 이름만 쓴다: {str(e)[:80]}")
+        return ""
+    return title[:max_len] if len(title) > max_len else title
 
 
 def ensure_end_card(d: Path, idea_id: str) -> Path | None:
@@ -2014,7 +2064,20 @@ def ensure_end_card(d: Path, idea_id: str) -> Path | None:
         book_title = book_title_from_scripture(cfg.get("scripture", ""))
         if book_title:
             cfg["title"] = book_title
-            print(f"    엔드카드 제목: 원본 제목이 없어 본문 책 이름으로 채웠다 — {book_title}")
+            # 책 이름만 있으면 밋밋하다 — 전사본을 읽고 이 설교만의 부제를
+            # 괄호로 덧붙인다. "(" + ")" + 사이 공백 한 칸만큼 예산에서 뺀다.
+            tp = d / "transcript.json"
+            if tp.exists():
+                try:
+                    segs = json.loads(tp.read_text(encoding="utf-8")).get("segments", [])
+                    budget = max(6, 22 - len(book_title) - 3)
+                    suggested = suggest_sermon_title(
+                        segs, cfg.get("scripture", ""), max_len=budget)
+                    if suggested:
+                        cfg["title"] = f"{book_title} ({suggested})"
+                except (OSError, json.JSONDecodeError) as e:
+                    print(f"    설교 제목 제안 건너뜀 — 전사본을 못 읽었다: {str(e)[:80]}")
+            print(f"    엔드카드 제목: 원본 제목이 없어 채웠다 — {cfg['title']}")
     ec.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"    엔드카드 생성 — {cfg['date']} · {cfg['scripture']} · {cfg['title']}")
     return ec
