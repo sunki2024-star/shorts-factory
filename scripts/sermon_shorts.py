@@ -388,12 +388,16 @@ def transcribe_whisper(wav: Path, model: str) -> list[dict]:
         raise RuntimeError(f"{Path(model).name} is English-only; Korean needs large-v3")
 
     out = wav.with_suffix("")
-    # -nc: 이전 30초 구간에서 디코딩한 텍스트를 다음 구간 프롬프트로 넘기지
-    # 않는다. 넘기면(기본값) 한 번 잘못 나온 문장을 스스로 다시 프롬프트로
-    # 받아 같은 문장을 몇 분씩 반복하는 whisper.cpp의 고질적 루프에 빠질 수
-    # 있다 (룻기 1장 인용 구절에서 실제로 재현됨). 각 구간을 독립적으로
-    # 디코딩하게 해서 이 루프를 원천 차단한다.
-    run([exe, "-m", model, "-f", str(wav), "-l", "ko", "-nc", "-oj", "-of", str(out)])
+    # -mc 0: 이전 구간에서 디코딩한 텍스트를 다음 구간 프롬프트로 0토큰만
+    # 넘긴다(=사실상 안 넘긴다). 넘기면(기본값 -1=무제한) 한 번 잘못 나온
+    # 문장을 스스로 다시 프롬프트로 받아 같은 문장을 몇 분씩 반복하는
+    # whisper.cpp의 고질적 루프에 빠질 수 있다 (룻기 1장 인용 구절에서 실제로
+    # 재현됨). 각 구간을 독립적으로 디코딩하게 해서 이 루프를 원천 차단한다.
+    # (`-nc`/`--no-context`는 whisper.cpp 버전에 따라 아예 없는 빌드가 있다 —
+    # 이 저장소가 쓰는 빌드에서 실제로 "unknown argument: -nc"로 막혀 whisper
+    # 전체가 죽는 사고가 났음. `-mc`/`--max-context`는 도움말에 항상 있는
+    # 표준 옵션이라 이쪽으로 바꿈.)
+    run([exe, "-m", model, "-f", str(wav), "-l", "ko", "-mc", "0", "-oj", "-of", str(out)])
     data = json.loads(Path(f"{out}.json").read_text(encoding="utf-8"))
     segs = []
     for s in data.get("transcription", []):
@@ -1057,7 +1061,7 @@ def cmd_transcribe(args):
             print("    못 잡았다 — 전사본 전체를 남긴다. 구간을 아는 경우\n"
                   "    --sermon-window 시작 끝 으로 직접 넘길 수 있다 (예: 0:45:00 1:20:00)")
 
-    # whisper도 반복·환각으로 같은 문장을 몇 분씩 중복 생성할 수 있어(-nc로
+    # whisper도 반복·환각으로 같은 문장을 몇 분씩 중복 생성할 수 있어(-mc 0으로
     # 줄였지만 완전히는 못 막는다), backend에 관계없이 무료 dedupe를 돌린다.
     # fill_holes 기본값이 False라 gemini 유료 재전사는 여기서 안 걸린다.
     if not args.no_repair:
