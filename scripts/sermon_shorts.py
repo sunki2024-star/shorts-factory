@@ -2618,7 +2618,17 @@ def cmd_render(args):
         # Subtitles and title are burned at the original timing, then the whole
         # picture is retimed. Doing it this way keeps captions in sync for free:
         # each frame already carries its text, and setpts only moves the frame.
-        vf = f"{crop_filter(c.get('crop', 'center'))},{subtitles_filter(ass)}"
+        # A seek this far into a long source file can hand the decoder a
+        # first frame whose presentation time isn't quite zero (B-frame
+        # reorder, keyframe rounding) — rare, and invisible almost
+        # everywhere, except that a Dialogue line starting at exactly
+        # 0:00:00.00 (the Title) can silently fail to arm for the whole
+        # clip when the very first frame arrives at a negative or
+        # non-monotonic time. Pinning frame 0 to PTS=0 before anything else
+        # runs closes that window; -avoid_negative_ts belt-and-braces the
+        # muxer side of the same seam. Captions never showed this because
+        # none of them start at 0.
+        vf = f"setpts=PTS-STARTPTS,{crop_filter(c.get('crop', 'center'))},{subtitles_filter(ass)}"
         af = None
         if speed != 1.0:
             vf += f",setpts=PTS/{speed}"
@@ -2630,6 +2640,7 @@ def cmd_render(args):
         cmd = [
             *ffmpeg_cmd(), "-y", "-hide_banner", "-loglevel", "error",
             "-ss", f"{start}", "-to", f"{end}", "-i", str(video),
+            "-avoid_negative_ts", "make_zero",
             "-vf", vf,
         ]
         if af:
