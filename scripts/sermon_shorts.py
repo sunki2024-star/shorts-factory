@@ -2366,6 +2366,35 @@ def _face_centre_x(video: Path, start: float, end: float | None,
     return xs[len(xs) // 2]
 
 
+def _motion_box_scanning(video: Path, start: float, end: float,
+                          chunk: float = 90.0):
+    """motion_box(), retried on shorter slices when a long span comes back empty.
+
+    motion_box() samples only MOTION_POINTS instants total and accumulates
+    them into one signal. Over a clip-length window (40–70s) that is plenty —
+    almost every sample lands mid-gesture. Over a whole sermon (10–30+
+    minutes, the span cmd_select() measures once for the video) the same
+    handful of samples is spread thin: a few landing during a still moment
+    (reading a verse aloud, a pause) can dilute the total below the "nothing
+    subject-like" threshold even though the preacher is there and moving most
+    of the time. Measured on SUN-2026-03-08: the whole ~28-minute sermon
+    window read as no subject at all, while every 40–70s clip cut from that
+    same footage found him cleanly and consistently. So a long span that
+    comes back empty is retried on a few shorter slices spread across it
+    before this gives up to "center" — a span already close to one clip's
+    length is not retried, since slicing it further would only dilute it more.
+    """
+    box = motion_box(video, start, end)
+    if box is not None or end - start <= chunk * 2:
+        return box
+    for i in range(4):
+        a = start + (end - start - chunk) * i / 3
+        b = motion_box(video, a, a + chunk)
+        if b not in (None, "still"):
+            return b
+    return box  # still None (or "still") — genuinely nothing found anywhere
+
+
 def auto_crop(video: Path, start: float = 0.0, end: float | None = None,
               fallback: tuple[float, float] | None = None):
     """Put the preacher in the middle of a 9:16 window.
@@ -2376,14 +2405,14 @@ def auto_crop(video: Path, start: float = 0.0, end: float | None = None,
       neither               → the middle of the frame
     """
     w, h = frame_size(video)
-    box = motion_box(video, start, end)
+    box = _motion_box_scanning(video, start, end)
     if box is None and fallback:
         # A single clip can be 40 seconds of a man standing still. Widen — but
         # only to the sermon, never to the whole recording: during the worship
         # set the camera is on the band and the congregation, and measuring
         # there centres the crop on the wrong half of the room.
         print("    이 구간에서는 못 찾았다 — 설교 구간 전체에서 다시 찾는다")
-        box = motion_box(video, fallback[0], fallback[1])
+        box = _motion_box_scanning(video, fallback[0], fallback[1])
 
     if box == "still":
         print("    정지 이미지 영상 — 잘라내지 않고 9:16에 맞춘다")
