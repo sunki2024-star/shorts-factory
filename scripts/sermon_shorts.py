@@ -2173,6 +2173,7 @@ MOTION_GAP = 1.0
 # well above any encoder shimmer.
 STILL_ENERGY = 300
 MAX_TOP_TRIM = 0.30             # never throw away more than this much of the height
+MAX_SUBJECT_FRAC = 0.55         # loosen the crop back up if he fills more of it than this
 HEADROOM = 0.12                 # keep this much of the frame above him
 
 # motion_box() is measured once over the whole sermon (comment above its call
@@ -2430,6 +2431,25 @@ def auto_crop(video: Path, start: float = 0.0, end: float | None = None,
     # cropped to a sliver.
     top = int(min(max(0.0, y0 - HEADROOM), MAX_TOP_TRIM) * h)
     ch = h - top
+
+    # The trim above only ever removes height — it never adds any back, so a
+    # camera that is already framed close (measured on WED-2023-05-24: the
+    # detected motion itself spans y 0.28–0.91, head to hands, because the
+    # source shot is a tight medium shot to begin with, not a wide platform
+    # shot) comes out over-zoomed: the subject fills nearly all of an already
+    # nearly-full-height crop, and scaling that up to fill the output makes
+    # him fill the phone screen and clip at the top on any upward movement.
+    # There is no way to manufacture headroom the source frame never had, but
+    # using the *whole* frame height is strictly better than leaving 15–30%
+    # of it trimmed away for no reason — so when he already fills more than
+    # MAX_SUBJECT_FRAC of the crop, give back top trim (down to none) until
+    # either the crop reaches the frame's own height or he fits comfortably.
+    subject_h = (y1 - y0) * h
+    if ch > 0 and subject_h / ch > MAX_SUBJECT_FRAC:
+        ch = min(h, subject_h / MAX_SUBJECT_FRAC)
+        top = h - int(ch)
+        ch = h - top
+
     cw = int(ch * 9 / 16)
     centre = int((x0 + x1) / 2 * w)
 
