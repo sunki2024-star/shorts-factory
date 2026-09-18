@@ -2298,13 +2298,35 @@ def sermon_window_of(d: Path) -> tuple[float, float] | None:
     return (float(w["start"]), float(w["end"])) if w else None
 
 
-def _rgb_frame(video: Path, at: float, w: int = FACE_W, h: int = FACE_H) -> bytes | None:
+def _rgb_frame(video: Path, at: float, w: int = FACE_W, h: int = FACE_H,
+               vf: str | None = None) -> bytes | None:
     p = subprocess.run(
         [*ffmpeg_cmd(), "-hide_banner", "-loglevel", "error", "-ss", f"{at:.2f}",
          "-i", str(video), "-frames:v", "1",
-         "-vf", f"scale={w}:{h}", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"],
+         "-vf", vf or f"scale={w}:{h}", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"],
         capture_output=True)
     return p.stdout if len(p.stdout) == w * h * 3 else None
+
+
+def _is_skin(r: int, g: int, b: int) -> bool:
+    """A plain RGB heuristic plus a YCbCr check, in one place both callers share.
+
+    RGB alone (warm, red-dominant, some spread between channels) reads a
+    sunlit wood panel or a beige wall the same as a face — measured on
+    WED-2023-06-07: a wooden backdrop at x≈300 scored high enough on the RGB
+    test alone that _face_centre_x() "corrected" a motion-based crop that
+    was actually right (x≈1170, the real preacher) onto the wall instead.
+    Real skin also sits inside a narrow Cr (red-difference chroma) band that
+    warm wood tones fall outside of — adding that one extra bound rejected
+    every wall/wood sample measured here while keeping every real face
+    sample. Still just a colour heuristic, not a face detector: a hand, a
+    forearm or a name tag can still pass it.
+    """
+    mx, mn = max(r, g, b), min(r, g, b)
+    if not (r > 95 and g > 40 and b > 20 and mx - mn > 15 and r > g and r > b):
+        return False
+    cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b
+    return cr >= 140
 
 
 def _face_centre_x(video: Path, start: float, end: float | None,
@@ -2343,9 +2365,7 @@ def _face_centre_x(video: Path, start: float, end: float | None,
             row = y * w * 3
             for x in range(w):
                 o = row + x * 3
-                r, g, bch = buf[o], buf[o + 1], buf[o + 2]
-                mx, mn = max(r, g, bch), min(r, g, bch)
-                if r > 95 and g > 40 and bch > 20 and mx - mn > 15 and r > g and r > bch:
+                if _is_skin(buf[o], buf[o + 1], buf[o + 2]):
                     counts[x] += 1
         if sum(counts) < 20:
             continue
@@ -2519,6 +2539,63 @@ def crop_filter(mode) -> str:
     return f"crop=w=ih*9/16:h=ih:x={x}:y=0,scale={OUT_W}:{OUT_H}"
 
 
+# Cheap enough to run on every clip, every render (a handful of tiny ffmpeg
+# frame pulls) — the point is to never again rely on someone opening
+# _check.png closely enough to notice.
+SUBJECT_CHECK_W, SUBJECT_CHECK_H = 96, 170   # keeps the 9:16 shape, small = cheap
+SUBJECT_CHECK_SAMPLES = 5
+SUBJECT_CHECK_BAND = (0.0, 0.6)              # face/upper body band in a portrait crop
+SUBJECT_CHECK_MIN_FRAC = 0.02                # a real face fills at least this much of the band
+
+
+def verify_clip_has_subject(video: Path, crop, start: float, end: float,
+                             samples: int = SUBJECT_CHECK_SAMPLES) -> tuple[int, int]:
+    """Sample the clip's own finished crop and check a person actually shows up.
+
+    Every crop bug so far (WED-2025-03-05, SUN-2026-05-31, SUN-2025-07-06,
+    SUN-2026-03-08, WED-2023-05-24, WED-2023-06-07) was caught only because
+    someone happened to notice it after the fact, and each one turned out to
+    have a different root cause — a failed motion read, a hand pulling the
+    centroid off a still preacher, a whole-sermon measurement diluted by a
+    long span, a source camera already framed close, a false skin-colour
+    match on a wooden backdrop. Chasing the next root cause the same way
+    just adds a sixth special case. This instead looks at the actual pixels
+    of the actual crop that is about to be burned, at the clip's own start
+    and end (not the whole sermon), and asks the one question a viewer would
+    ask: is there a face-sized skin-toned presence on screen at all. It does
+    not care why one is missing — a bad crop position, a crop that is
+    over-zoomed past the subject's edges, or (WED-2023-06-07's clip-02) a
+    clip whose whole time window is a full-screen scripture-slide graphic
+    with no camera feed in it, so no crop could ever put a person there.
+
+    Returns (hits, tried) — tried can be less than `samples` if a frame pull
+    failed outright (e.g. right at the very end of the source). tried == 0
+    means nothing could be sampled at all, which the caller should treat as
+    inconclusive, not as a pass.
+    """
+    vf = f"{crop_filter(crop)},scale={SUBJECT_CHECK_W}:{SUBJECT_CHECK_H}"
+    y0 = int(SUBJECT_CHECK_H * SUBJECT_CHECK_BAND[0])
+    y1 = int(SUBJECT_CHECK_H * SUBJECT_CHECK_BAND[1])
+    need = SUBJECT_CHECK_MIN_FRAC * SUBJECT_CHECK_W * (y1 - y0)
+    hits = tried = 0
+    for i in range(samples):
+        t = start + (end - start) * (i + 0.5) / samples
+        buf = _rgb_frame(video, t, SUBJECT_CHECK_W, SUBJECT_CHECK_H, vf=vf)
+        if not buf:
+            continue
+        tried += 1
+        n = 0
+        for y in range(y0, y1):
+            row = y * SUBJECT_CHECK_W * 3
+            for x in range(SUBJECT_CHECK_W):
+                o = row + x * 3
+                if _is_skin(buf[o], buf[o + 1], buf[o + 2]):
+                    n += 1
+        if n >= need:
+            hits += 1
+    return hits, tried
+
+
 def write_check_sheet(made: "list[tuple[str, Path, dict]]", out_path: Path) -> None:
     """One frame from partway through each just-rendered clip, side by side.
 
@@ -2652,6 +2729,17 @@ def cmd_render(args):
             # the finished file otherwise.
             print(f"    ⚠ {cid} 설교자를 못 찾아 화면 중앙을 쓴다. 렌더 전에 확인하려면:")
             print(f"        bash scripts/shorts preview {args.idea_id}")
+
+        # Independent of whatever crop got chosen above and however it got
+        # chosen — this looks at the actual pixels that are about to be
+        # burned and asks only "is a person on screen", so it catches
+        # whatever kind of miss produced a person-less clip, known or not.
+        hits, tried = verify_clip_has_subject(video, c.get("crop", "center"), start, end)
+        if tried and hits / tried < 0.5:
+            print(f"    ⚠ {cid} 사람이 화면에 잘 안 보이는 것 같다 "
+                  f"({hits}/{tried} 프레임에서만 감지) — renders/{cid}.mp4 를 직접 확인해 보라")
+            c["_person_check_warn"] = f"{hits}/{tried}"
+
         speed = float(c.get("speed", DEFAULT_SPEED))
         if not 0.5 <= speed <= 2.0:
             die(f"{cid}: speed {speed} is outside atempo's 0.5–2.0 range")
@@ -2760,8 +2848,17 @@ def cmd_render(args):
             pkg.append("- ⚠️ 찬양 음원 포함 — Content ID 확인 전 업로드 금지")
         if c.get("congregation_visible"):
             pkg.append("- ⚠️ 회중석 노출 — 크롭/동의 확인 필요")
+        if c.get("_person_check_warn"):
+            pkg.append(f"- ⚠️ 사람이 화면에 잘 안 보일 수 있음 "
+                       f"({c['_person_check_warn']} 프레임에서만 감지) — "
+                       f"renders/{cid}.mp4 확인 필요")
         pkg.append("")
     (d / "publish-package.md").write_text("\n".join(pkg), encoding="utf-8")
+
+    warned = [cid for cid, _, c in made if c.get("_person_check_warn")]
+    if warned:
+        print(f"\n⚠ 사람이 잘 안 보일 수 있는 클립: {', '.join(warned)} — "
+              f"업로드 전에 renders 파일을 직접 열어 확인하라")
 
     print(f"\n==> {len(made)} clip(s) in {rel(out_dir)}")
     print(f"==> 승인용 패키지: {rel(d / 'publish-package.md')}")
