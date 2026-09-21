@@ -211,6 +211,17 @@ def idea_dir(idea_id: str) -> Path:
 def need(idea_id: str) -> Path:
     d = idea_dir(idea_id)
     if not d.exists():
+        # fetch may have auto-reclassified this WED- pick to DAWN- (see
+        # check_dawn_misfile) after a caller already had the old id in hand —
+        # weekly_run.sh, a resumed multi-step run, someone's shell history.
+        # Redirect instead of stopping the whole run over a rename that
+        # already succeeded.
+        if idea_id.startswith("WED-"):
+            alt = idea_dir("DAWN-" + idea_id.split("-", 1)[1])
+            if alt.exists():
+                print(f"    ⚠ {idea_id} 는 새벽기도로 재분류되어 지금은 "
+                      f"{alt.name} 이다 — 그쪽으로 이어간다")
+                return alt
         die(f"{d.relative_to(REPO)} does not exist — run `fetch` first")
     return d
 
@@ -321,12 +332,13 @@ def cmd_fetch(args):
                 "  APIFY_TOKEN is set in the environment, not in a file — see\n"
                 "  docs/porting-to-your-claude.md. On a machine where yt-dlp can\n"
                 "  reach YouTube, drop --via apify and pay nothing.")
+        idea_id, d = check_dawn_misfile(args.idea_id, d, find_source(d))
         (d / "meta.json").write_text(
-            json.dumps({"idea_id": args.idea_id, "source_url": args.url,
+            json.dumps({"idea_id": idea_id, "source_url": args.url,
                         "fetched_via": "apify", "quality": args.quality},
                        ensure_ascii=False, indent=2), encoding="utf-8")
-        note_fetched(args.idea_id, args.url)
-        print(f"==> source in {src.relative_to(REPO)}")
+        note_fetched(idea_id, args.url)
+        print(f"==> source in {(d / 'source').relative_to(REPO)}")
         return
 
     ydl = ytdlp_cmd()
@@ -351,12 +363,13 @@ def cmd_fetch(args):
             "  See docs/environment-constraints.md for the two ways around it."
         )
 
+    idea_id, d = check_dawn_misfile(args.idea_id, d, find_source(d))
     (d / "meta.json").write_text(
-        json.dumps({"idea_id": args.idea_id, "source_url": args.url}, ensure_ascii=False, indent=2),
+        json.dumps({"idea_id": idea_id, "source_url": args.url}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    note_fetched(args.idea_id, args.url)
-    print(f"==> source in {src.relative_to(REPO)}")
+    note_fetched(idea_id, args.url)
+    print(f"==> source in {(d / 'source').relative_to(REPO)}")
 
 
 # ------------------------------------------------------------ transcribe ---
@@ -647,6 +660,60 @@ def probe_duration(media: Path) -> float:
             hh, mm, ss = line.split("Duration:")[1].split(",")[0].strip().split(":")
             return int(hh) * 3600 + int(mm) * 60 + float(ss)
     raise RuntimeError(f"could not read duration of {media}")
+
+
+def probe_fps(media: Path) -> float:
+    """Video frame rate, parsed the same way as probe_duration() — no ffprobe
+    in this build. Used only to tell a real camera recording from a still
+    image with audio over it (see check_dawn_misfile)."""
+    p = subprocess.run([*ffmpeg_cmd(), "-hide_banner", "-i", str(media)],
+                       capture_output=True, text=True)
+    for line in p.stderr.splitlines():
+        if "Video:" in line and " fps" in line:
+            m = re.search(r"([\d.]+)\s*fps", line)
+            if m:
+                return float(m.group(1))
+    raise RuntimeError(f"could not read fps of {media}")
+
+
+# classify() sorts a Wednesday-dated video into "wed" once it runs long
+# enough — but a daily 새벽기도 that happens to run long on a Wednesday
+# looks identical by title and duration alone (WED-2024-09-04 was exactly
+# this: 45 minutes, no "새벽기도" in the title, but a 6fps still image with
+# audio over it, not a camera feed — a real 수요예배 misclassified it would
+# never produce). Duration has no clean cutoff between the two — real
+# Wednesday sermons in this channel run anywhere from 15 to 58 minutes, same
+# as dawn prayers — so instead of raising the threshold and still guessing,
+# this checks the one thing that actually differs once the file is on disk:
+# 새벽기도 is almost always a still image (a handful of frames per second at
+# most); 수요예배 is a real recording at the camera's frame rate. Only WED ->
+# DAWN is corrected — a dawn prayer that happens to be filmed normally is
+# not evidence it was really Wednesday's service, so the reverse direction
+# is left alone.
+DAWN_STILL_FPS = 15.0
+
+
+def check_dawn_misfile(idea_id: str, d: Path, video: Path) -> tuple[str, Path]:
+    """After a WED- video is downloaded, correct it to DAWN- if it turns out
+    to be a still-image recording. Returns the (possibly renamed) idea_id
+    and its folder; safe to call unconditionally right after fetch."""
+    if not idea_id.startswith("WED-"):
+        return idea_id, d
+    try:
+        fps = probe_fps(video)
+    except RuntimeError:
+        return idea_id, d
+    if fps >= DAWN_STILL_FPS:
+        return idea_id, d
+    new_id = "DAWN-" + idea_id.split("-", 1)[1]
+    new_d = idea_dir(new_id)
+    if new_d.exists():
+        print(f"    ⚠ {new_id} 이미 있어 자동 재분류를 건너뛴다 — 직접 확인할 것")
+        return idea_id, d
+    d.rename(new_d)
+    print(f"    ⚠ {idea_id} → {new_id} 로 자동 재분류함 "
+          f"(영상이 {fps:.1f}fps 정지화면 — 카메라로 찍은 수요예배가 아니라 새벽기도로 보인다)")
+    return new_id, new_d
 
 
 SERMON_WINDOW_PROMPT = """이것은 한국 개신교 교회의 주일예배 실황 녹음 전체다.

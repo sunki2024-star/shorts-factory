@@ -69,6 +69,20 @@ esac
 DIR="office/production/$ID"
 PY="python3 scripts/sermon_shorts.py"
 
+# WED- 로 골랐던 게 사실 새벽기도(정지화면)라 이전 실행의 fetch 에서 이미
+# DAWN-<같은 날짜> 로 재분류돼 있을 수 있다 — 이어서 돌릴 때 옛 이름을 계속
+# 붙들지 않도록 여기서 먼저 확인한다.
+case "$ID" in
+  WED-*)
+    ALT="office/production/DAWN-${ID#WED-}"
+    if [ ! -d "$DIR" ] && [ -d "$ALT" ]; then
+      ID="DAWN-${ID#WED-}"
+      DIR="$ALT"
+      echo "   (이미 새벽기도로 재분류됨 — $ID 로 이어간다)"
+    fi
+    ;;
+esac
+
 command -v ffmpeg >/dev/null 2>&1 || bash scripts/setup_render_env.sh
 
 # 전사 수단이 없으면 지금 멈춘다. 70분짜리를 다 받고 2단계에서 죽으면
@@ -88,6 +102,18 @@ if ls "$DIR"/source/sermon.* >/dev/null 2>&1; then
 else
   step "1/4 원본 내려받기"
   $PY fetch "$ID" --url "$URL"
+  # 방금 그 fetch 가 정지화면(새벽기도)을 발견해 폴더를 DAWN-<같은 날짜>로
+  # 자동 재분류했을 수 있다 — 이후 단계는 새 이름을 따라간다.
+  case "$ID" in
+    WED-*)
+      ALT="office/production/DAWN-${ID#WED-}"
+      if [ ! -d "$DIR" ] && [ -d "$ALT" ]; then
+        ID="DAWN-${ID#WED-}"
+        DIR="$ALT"
+        echo "   (재분류됨: 새벽기도로 확인되어 $ID 로 이어간다)"
+      fi
+      ;;
+  esac
 fi
 
 # 2 ─ 전사 -----------------------------------------------------------------
