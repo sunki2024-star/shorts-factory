@@ -1408,11 +1408,17 @@ def show_captions(d: Path, clips: list[dict], segs: list[dict] | None = None) ->
 
 
 CAPTIONS_README = """이 폴더의 파일을 고치면 자막이 바뀝니다.
-
-1. clip-01.srt 를 오른쪽 버튼 → 다음으로 열기 → 텍스트편집기
+{url_line}
+1. 고치고 싶은 자막 파일(clip-01.srt, clip-02.srt …)을 오른쪽 버튼 →
+   다음으로 열기 → 텍스트편집기
 2. 맨 아랫줄 글자만 고칩니다. 숫자와 --> 줄은 그대로 둡니다
 3. command + S 로 저장합니다 (이걸 빼먹으면 안 바뀝니다)
-4. 터미널에서:  bash scripts/shorts render {idea} --only clip-01
+4. 몇 개를 고쳤든, 아래 한 줄이면 전부 한 번에 다시 만들어집니다.
+   터미널을 열고 그대로 복사해서 붙여넣은 뒤 엔터를 누르세요:
+
+   bash scripts/shorts render {idea}
+
+   (한 편만 다시 만들고 싶으면:  bash scripts/shorts render {idea} --only clip-01)
 
 여기 파일이 있으면 렌더가 이것을 씁니다.
 다시 전사해도 고친 자막은 그대로 남습니다.
@@ -1473,8 +1479,17 @@ def export_captions(d: Path, idea_id: str, force: bool = False,
             if tj.exists() else [])
     out = d / "captions"
     out.mkdir(exist_ok=True)
+    url_line = ""
+    meta_f = d / "meta.json"
+    if meta_f.exists():
+        try:
+            src_url = json.loads(meta_f.read_text(encoding="utf-8")).get("source_url")
+        except Exception:  # noqa: BLE001 — a broken meta file must not block captions
+            src_url = None
+        if src_url:
+            url_line = f"\n원본 영상: {src_url}\n"
     (out / "여기서 자막을 고칩니다.txt").write_text(
-        CAPTIONS_README.format(idea=idea_id), encoding="utf-8")
+        CAPTIONS_README.format(idea=idea_id, url_line=url_line), encoding="utf-8")
 
     stamps = caption_stamps(d)
     made, moved = [], []
