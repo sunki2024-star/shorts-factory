@@ -99,6 +99,24 @@ def run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, check=True, **kw)
 
 
+def write_text_durably(path: Path, text: str, encoding: str = "utf-8") -> None:
+    """write_text(), but fsynced before returning.
+
+    Every caller here writes a file (an .ass burn-in script, a concat list)
+    and then, in the same breath, hands its path to an ffmpeg subprocess
+    that opens and reads it immediately. On this repo's mounted/networked
+    connected-folder path that gap is real: ffmpeg can observe the file
+    before the write has actually landed, and silently gets stale or
+    partial content — no error, just wrong output (seen once as a Title
+    cue that was correctly in the .ass file on disk a moment later, but
+    missing from the very same render). fsync closes that window.
+    """
+    with path.open("w", encoding=encoding) as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+
+
 # --------------------------------------------------------- tool discovery ---
 # On Windows these arrive as a pip wheel or a folder someone unzipped, not as
 # something on PATH, so nothing here assumes a bare command name resolves.
@@ -1271,7 +1289,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             continue
         text = wrap_korean(s["text"].replace("\n", " ").strip())
         rows.append(f"Dialogue: 0,{ass_ts(start)},{ass_ts(end)},Default,,0,0,0,,{text}")
-    path.write_text(head + "\n".join(rows) + "\n", encoding="utf-8")
+    write_text_durably(path, head + "\n".join(rows) + "\n")
 
 
 # -------------------------------------------------------------- captions ---
@@ -2207,7 +2225,8 @@ def build_end_card(cfg: dict, out: Path, seconds: float = END_CARD_SECONDS) -> P
                     f"{{\\pos({OUT_W//2},{y})}}{wrapped}")
 
     ass = out.with_suffix(".ass")
-    ass.write_text(
+    write_text_durably(
+        ass,
         f"[Script Info]\nScriptType: v4.00+\nPlayResX: {OUT_W}\nPlayResY: {OUT_H}\n"
         "WrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\n"
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
@@ -2215,8 +2234,7 @@ def build_end_card(cfg: dict, out: Path, seconds: float = END_CARD_SECONDS) -> P
         "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
         + "\n".join(styles)
         + "\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, "
-          "MarginV, Effect, Text\n" + "\n".join(rows) + "\n",
-        encoding="utf-8")
+          "MarginV, Effect, Text\n" + "\n".join(rows) + "\n")
 
     # Encoded to match the clip exactly, so the two concatenate without a re-encode.
     run([*ffmpeg_cmd(), "-y", "-hide_banner", "-loglevel", "error",
@@ -2882,8 +2900,7 @@ def cmd_render(args):
 
         if end_card is not None:
             lst = out_dir / f"{cid}.concat.txt"
-            lst.write_text(f"file '{body.resolve()}'\nfile '{end_card.resolve()}'\n",
-                           encoding="utf-8")
+            write_text_durably(lst, f"file '{body.resolve()}'\nfile '{end_card.resolve()}'\n")
             run([*ffmpeg_cmd(), "-y", "-hide_banner", "-loglevel", "error",
                  "-f", "concat", "-safe", "0", "-i", str(lst),
                  "-c", "copy", "-movflags", "+faststart", str(out)])
