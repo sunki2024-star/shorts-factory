@@ -370,15 +370,25 @@ def cmd_fetch(args):
             "-f", "bv*[height<=1080]+ba/b[height<=1080]/b",
             "--merge-output-format", "mp4",
             "--write-info-json", "--no-playlist",
+            # YouTube's CDN will reset a long single-range request on a flaky
+            # connection ("N bytes read, M more expected", retried until it
+            # gives up) — fetching in smaller ranges means a reset only costs
+            # one chunk instead of the whole file.
+            "--http-chunk-size", "10M",
             "-o", str(src / "sermon.%(ext)s"),
             args.url,
         ])
     except subprocess.CalledProcessError:
         die(
             "yt-dlp failed.\n"
-            "  If the error mentions 'Tunnel connection failed: 403', YouTube is\n"
-            "  blocked by this environment's egress policy, not by yt-dlp.\n"
-            "  See docs/environment-constraints.md for the two ways around it."
+            "  \"N bytes read, M more expected\"를 반복하다 포기했다면 그냥\n"
+            "  연결이 불안정했던 것이다 — 같은 명령을 다시 실행하면 대개 된다.\n"
+            "  계속 그러면 yt-dlp부터 최신으로: pip install -U yt-dlp (또는\n"
+            "  brew upgrade yt-dlp). --http-chunk-size 10M 은 이미 켜져 있다.\n"
+            "  반대로 'Tunnel connection failed: 403'이 보였다면 이건 다르다 —\n"
+            "  그건 네트워크가 아니라 샌드박스/클라우드 컨테이너의 egress 정책이\n"
+            "  막은 것이다 (가정/교회 회선에서 직접 돌리고 있다면 해당 없음).\n"
+            "  그 경우는 docs/environment-constraints.md 를 본다."
         )
 
     idea_id, d = check_dawn_misfile(args.idea_id, d, find_source(d))
