@@ -44,6 +44,7 @@ import shutil
 import subprocess
 import tempfile
 import sys
+import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -100,21 +101,40 @@ def run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
 
 
 def write_text_durably(path: Path, text: str, encoding: str = "utf-8") -> None:
-    """write_text(), but fsynced before returning.
+    """write_text(), but fsynced and read back before returning.
 
     Every caller here writes a file (an .ass burn-in script, a concat list)
     and then, in the same breath, hands its path to an ffmpeg subprocess
     that opens and reads it immediately. On this repo's mounted/networked
     connected-folder path that gap is real: ffmpeg can observe the file
     before the write has actually landed, and silently gets stale or
-    partial content — no error, just wrong output (seen once as a Title
-    cue that was correctly in the .ass file on disk a moment later, but
-    missing from the very same render). fsync closes that window.
+    partial content — no error, just wrong output (seen more than once as
+    a Title cue that was correctly in the .ass file on disk a moment
+    later, but missing from the very same render).
+
+    fsync alone turned out not to be enough — a re-render still lost the
+    Title after that fix landed, on a file whose content only settled to
+    correct sometime after this function had already returned. Whatever
+    layer sits between this process and the actual disk (this is a
+    mounted connected folder, not a local one) can apparently still hand
+    a *different* process a stale read for a moment even after fsync
+    returns here. So: write, fsync, then have a *separate process* (`cat`)
+    read it back — this process's own read_text() would just hit its own
+    page cache and prove nothing about what ffmpeg will actually see when
+    it opens the same path a moment later. Retry with backoff until a
+    fresh external read agrees with what was just written.
     """
-    with path.open("w", encoding=encoding) as f:
-        f.write(text)
-        f.flush()
-        os.fsync(f.fileno())
+    for attempt in range(6):
+        with path.open("w", encoding=encoding) as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        seen = subprocess.run(["cat", str(path)], capture_output=True).stdout
+        if seen.decode(encoding, errors="replace") == text:
+            return
+        time.sleep(0.3 * (attempt + 1))
+    die(f"{path}: 다시 읽어도 방금 쓴 내용과 계속 달라서 포기한다 — "
+        "연결된 폴더 쪽에서 쓰기가 이상하게 지연되고 있다.")
 
 
 # --------------------------------------------------------- tool discovery ---
