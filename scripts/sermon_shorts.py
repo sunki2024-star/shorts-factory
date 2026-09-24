@@ -421,11 +421,31 @@ def cmd_fetch(args):
 
 
 # ------------------------------------------------------------ transcribe ---
+# yt-dlp writes each format to "sermon.f<id>.<ext>" and only merges them into
+# the clean "sermon.<ext>" once every stream downloaded successfully. If a
+# download dies partway (a reset audio track, a Ctrl-C) those per-format
+# files are left behind — one of them is usually video-only, no audio at
+# all — while "sermon.<ext>" itself never gets written. A glob that doesn't
+# tell the two apart happily hands the video-only fragment to transcribe/
+# render as if fetch had actually finished, which is silent and confusing:
+# ffmpeg then fails deep inside a later step ("no stream") pointing nowhere
+# near the real cause.
+_YTDLP_FRAGMENT = re.compile(r"\.f\d+\.")
+
+
 def find_source(d: Path) -> Path:
-    for p in sorted((d / "source").glob("sermon.*")):
-        if p.suffix.lower() in (".mp4", ".mkv", ".webm", ".m4a", ".mp3", ".wav"):
-            return p
-    die(f"no source media in {(d / 'source').relative_to(REPO)} — run `fetch` first")
+    src = d / "source"
+    candidates = [p for p in sorted(src.glob("sermon.*"))
+                  if p.suffix.lower() in (".mp4", ".mkv", ".webm", ".m4a", ".mp3", ".wav")]
+    finished = [p for p in candidates if not _YTDLP_FRAGMENT.search(p.name)]
+    if finished:
+        return finished[0]
+    if candidates:
+        die(f"{(src).relative_to(REPO)} 에 있는 건 이전 다운로드가 끝까지 못 간 "
+            f"조각뿐이다 ({', '.join(p.name for p in candidates)}) — 병합된 "
+            f"sermon.<확장자> 가 없다. 그 조각 파일들을 지우고 fetch를 다시 "
+            f"돌려라.")
+    die(f"no source media in {(src).relative_to(REPO)} — run `fetch` first")
 
 
 def extract_audio(video: Path, out: Path) -> Path:

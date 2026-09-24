@@ -97,7 +97,12 @@ fi
 step() { printf '\n\033[1m━━ %s\033[0m\n' "$*"; }
 
 # 1 ─ 원본 -----------------------------------------------------------------
-if ls "$DIR"/source/sermon.* >/dev/null 2>&1; then
+# yt-dlp writes "sermon.f<id>.<ext>" per format and only merges them into
+# the plain "sermon.<ext>" once every stream came down clean. A run that
+# died partway (a reset audio track, e.g.) leaves just the fragments —
+# matching a bare "sermon.*" glob would call that "already fetched" and
+# skip straight past a source that transcribe/render can't actually use.
+if ls "$DIR"/source/sermon.* 2>/dev/null | grep -vE '\.f[0-9]+\.' | grep -q .; then
   step "1/4 원본 — 이미 있음, 건너뜀"
 else
   step "1/4 원본 내려받기"
