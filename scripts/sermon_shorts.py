@@ -2930,8 +2930,20 @@ def cmd_render(args):
         dur = (end - start) / speed
         print(f"==> {cid}  {hhmmss(start)}–{hhmmss(end)}  "
               f"({end-start:.0f}s → {dur:.0f}s @ {speed}x)")
+        # -threads 1 on both sides of the seek: multi-threaded H.264 decode
+        # reorders/schedules frames non-deterministically right around a seek
+        # point, which is exactly the window setpts=PTS-STARTPTS /
+        # -avoid_negative_ts above are trying to pin down. With threading on,
+        # that pin can still land on the wrong frame on an unlucky run — the
+        # same clip, same source, same command, renders correctly nine times
+        # and silently drops the Title on the tenth (seen for real on
+        # DAWN-2023-09-16 and again on SUN-2024-11-03 clip-02: re-running the
+        # identical command afterwards produced a correct file every time).
+        # Single-threaded decode+encode costs a few seconds per clip and
+        # removes that whole class of flake.
         cmd = [
             *ffmpeg_cmd(), "-y", "-hide_banner", "-loglevel", "error",
+            "-threads", "1",
             "-ss", f"{start}", "-to", f"{end}", "-i", str(video),
             "-avoid_negative_ts", "make_zero",
             "-vf", vf,
@@ -2941,7 +2953,7 @@ def cmd_render(args):
         body = out if end_card is None else out.with_name(f"{cid}.body.mp4")
         cmd += [
             "-c:v", "libx264", "-preset", "medium", "-crf", "20",
-            "-pix_fmt", "yuv420p", "-r", "30",
+            "-pix_fmt", "yuv420p", "-r", "30", "-threads", "1",
             "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
             "-movflags", "+faststart",
             str(body),
