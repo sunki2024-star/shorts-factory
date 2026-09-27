@@ -42,4 +42,15 @@ if [ "$#" -eq 0 ]; then
   exit 1
 fi
 
+# 렌더가 끝나면 iCloud Drive에 작업물 복사본을 남긴다 (best-effort — 실패해도
+# 렌더 결과엔 영향 없음). 끄려면 SHORTS_NO_BACKUP=1.
+if [ "$1" = "render" ] && [ -z "${SHORTS_NO_BACKUP:-}" ]; then
+  rc=0
+  "$PYBIN" scripts/sermon_shorts.py "$@" || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    bash scripts/backup-icloud.sh || echo "(iCloud 백업은 건너뜀 — 렌더 결과는 정상)" >&2
+  fi
+  exit "$rc"
+fi
+
 exec "$PYBIN" scripts/sermon_shorts.py "$@"
