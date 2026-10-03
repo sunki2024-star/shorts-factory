@@ -1816,7 +1816,10 @@ def _ask_claude(prompt: str) -> str:
         raise RuntimeError("claude CLI not found")
     p = subprocess.run([exe, "-p", prompt], capture_output=True, text=True, timeout=900)
     if p.returncode != 0:
-        raise RuntimeError(f"claude -p failed: {p.stderr[:200]}")
+        # Claude Code prints most failures (login expired, usage limit) to
+        # stdout, not stderr — show both, or the error reads as blank.
+        why = (p.stderr.strip() or p.stdout.strip() or f"exit {p.returncode}")
+        raise RuntimeError(f"claude -p failed: {why[-300:]}")
     return p.stdout
 
 
