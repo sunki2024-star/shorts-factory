@@ -48,6 +48,34 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+
+
+def _load_dotenv() -> None:
+    """Read REPO/.env (GEMINI_API_KEY=... etc.) into os.environ, if present.
+
+    .gitignore already excludes .env — that convention existed before this
+    function did, which is presumably why every machine kept hitting
+    "GEMINI_API_KEY not set": there was nowhere for the key to actually load
+    from except a real shell export, and nothing here ever told you that.
+    A real environment variable always wins over the file, so this never
+    overrides something you've deliberately exported.
+    """
+    env_path = REPO / ".env"
+    if not env_path.exists():
+        return
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv()
+
 PROD = REPO / "office" / "production"
 # Fonts ship with the repo rather than the system, so a render looks the same
 # on every machine and needs no admin rights to set up. A system path still
