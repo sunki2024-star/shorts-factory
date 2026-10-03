@@ -28,6 +28,48 @@ URL=${1:-}
 ID=${2:-}
 
 if [ -z "$URL" ]; then
+  # 새로 고르기 전에, 소스는 받아뒀는데 아직 끝까지 못 간 편이 있는지 먼저
+  # 본다. 안 그러면 전사/선별 단계에서 한 번 죽은 뒤 --auto를 다시 돌릴 때마다
+  # 그 수백 MB짜리 원본은 버려두고 매번 새 영상을 무작위로 또 받는다 —
+  # 아이맥에서 겪은 문제가 바로 이것이다.
+  # 여러 편이 동시에 미완성 상태일 수 있다 (예: 예전에 멈춘 새벽기도 하나,
+  # 방금 막 받아둔 주일예배 하나) — 그 중 소스를 가장 최근에 받은 것을 고른다.
+  # "오래 방치된 것부터"가 아니라 "방금 하던 것부터"가 직관과 맞는다.
+  RESUME_DIR=""
+  RESUME_MTIME=0
+  for d in office/production/*/; do
+    rid=$(basename "$d")
+    case "$rid" in SUN-*|WED-*|DAWN-*) ;; *) continue ;; esac
+    [ -f "${d}renders/clip-01.mp4" ] && continue   # 이미 렌더까지 끝났다
+    src_file=$(ls "${d}source/"sermon.* 2>/dev/null | grep -vE '\.f[0-9]+\.' | head -1) || true
+    [ -n "$src_file" ] || continue   # 조각만 있거나 아예 없으면 제외
+    # stat's flags differ between macOS (BSD) and Linux (GNU) and a wrong
+    # flag can silently print something else instead of erroring — python3
+    # (already required by this whole pipeline) gives one answer everywhere.
+    m=$(python3 -c "import os,sys; print(int(os.path.getmtime(sys.argv[1])))" "$src_file" 2>/dev/null || echo 0)
+    if [ "$m" -gt "$RESUME_MTIME" ]; then
+      RESUME_MTIME="$m"
+      RESUME_DIR="$d"
+    fi
+  done
+  if [ -n "$RESUME_DIR" ]; then
+    RID=$(basename "$RESUME_DIR")
+    RURL=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('${RESUME_DIR}source/sermon.info.json'))
+    print(d.get('webpage_url') or '')
+except Exception:
+    pass
+" 2>/dev/null || true)
+    if [ -n "$RURL" ]; then
+      ID="$RID"; URL="$RURL"
+      echo "==> 이미 받아둔 미완성 편을 이어간다 (새로 고르지 않음): $ID"
+    fi
+  fi
+fi
+
+if [ -z "$URL" ]; then
   # 아직 안 만든 주일예배 중에서 무작위. 메타데이터만 읽으므로 무료다.
   printf '\n\033[1m━━ 대상 선정\033[0m\n'
   PICK=$(python3 scripts/sermon_shorts.py sermons --pick) || exit 1
