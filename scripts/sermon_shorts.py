@@ -1509,7 +1509,13 @@ CAPTIONS_README = """이 폴더의 파일을 고치면 자막이 바뀝니다.
    다음으로 열기 → 텍스트편집기
 2. 맨 아랫줄 글자만 고칩니다. 숫자와 --> 줄은 그대로 둡니다
 3. command + S 로 저장합니다 (이걸 빼먹으면 안 바뀝니다)
-4. 아래 명령어 중 방금 고친 것에 맞는 줄을 그대로 복사해서 터미널에
+4. 터미널을 엽니다 (command + 스페이스 → "터미널" 입력 → 엔터).
+   터미널을 새로 열었으면 먼저 이 줄을 붙여넣고 엔터 — shorts-factory
+   폴더로 들어가는 명령입니다 (이미 들어가 있어도 다시 쳐도 괜찮습니다):
+
+   cd {repo}
+
+5. 아래 명령어 중 방금 고친 것에 맞는 줄을 그대로 복사해서 터미널에
    붙여넣고 엔터를 누르세요 — 어느 걸 써야 할지 헷갈리면 맨 위
    "전부 다시 만들기"를 쓰면 됩니다:
 
@@ -1521,6 +1527,32 @@ CAPTIONS_README = """이 폴더의 파일을 고치면 자막이 바뀝니다.
 다만 구간(시작·끝 시각)을 바꾸면 시간이 안 맞게 되므로 새 구간에 맞춰
 다시 만들고, 고쳤던 파일은 clip-01.srt.이전 으로 남겨 둡니다.
 """
+
+
+def repo_for_terminal(repo: Path = REPO) -> str:
+    """How to `cd` back here from a freshly opened Terminal.
+
+    Written as ~/shorts-factory when that is where it lives (the manuals'
+    standard path), otherwise the full path, quoted in case of spaces.
+    """
+    try:
+        rel = repo.relative_to(Path.home())
+        return "~/" + str(rel) if " " not in str(rel) else f'"$HOME/{rel}"'
+    except ValueError:
+        return f'"{repo}"'
+
+
+def write_captions_readme(out: Path, idea_id: str, clips: list,
+                          url_line: str = "", repo: str | None = None) -> None:
+    per_clip = "".join(
+        f"\n   [{c['id']}만 다시 만들기]\n"
+        f"   bash scripts/shorts render {idea_id} --only {c['id']}\n"
+        for c in clips
+    )
+    (out / "여기서 자막을 고칩니다.txt").write_text(
+        CAPTIONS_README.format(idea=idea_id, url_line=url_line, per_clip=per_clip,
+                               repo=repo or repo_for_terminal()),
+        encoding="utf-8")
 
 
 def caption_stamps(d: Path) -> dict:
@@ -1584,14 +1616,7 @@ def export_captions(d: Path, idea_id: str, force: bool = False,
             src_url = None
         if src_url:
             url_line = f"\n원본 영상: {src_url}\n"
-    per_clip = "".join(
-        f"\n   [{c['id']}만 다시 만들기]\n"
-        f"   bash scripts/shorts render {idea_id} --only {c['id']}\n"
-        for c in clips
-    )
-    (out / "여기서 자막을 고칩니다.txt").write_text(
-        CAPTIONS_README.format(idea=idea_id, url_line=url_line, per_clip=per_clip),
-        encoding="utf-8")
+    write_captions_readme(out, idea_id, clips, url_line)
 
     stamps = caption_stamps(d)
     made, moved = [], []
@@ -2921,7 +2946,14 @@ def cmd_render(args):
         # chosen — this looks at the actual pixels that are about to be
         # burned and asks only "is a person on screen", so it catches
         # whatever kind of miss produced a person-less clip, known or not.
-        hits, tried = verify_clip_has_subject(video, c.get("crop", "center"), start, end)
+        # "fit" means auto_crop saw a still image with audio over it (most
+        # 새벽기도) — there is no person in the picture by design, so asking
+        # "is a person on screen" only produces a warning on every clip, and
+        # a warning that is always there teaches people to ignore real ones.
+        if c.get("crop") == "fit":
+            hits, tried = 0, 0
+        else:
+            hits, tried = verify_clip_has_subject(video, c.get("crop", "center"), start, end)
         if tried and hits / tried < 0.5:
             print(f"    ⚠ {cid} 사람이 화면에 잘 안 보이는 것 같다 "
                   f"({hits}/{tried} 프레임에서만 감지) — renders/{cid}.mp4 를 직접 확인해 보라")
