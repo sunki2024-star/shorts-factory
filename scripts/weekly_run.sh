@@ -41,7 +41,7 @@ if [ -z "$URL" ]; then
     rid=$(basename "$d")
     case "$rid" in SUN-*|WED-*|DAWN-*) ;; *) continue ;; esac
     [ -f "${d}renders/clip-01.mp4" ] && continue   # 이미 렌더까지 끝났다
-    src_file=$(ls "${d}source/"sermon.* 2>/dev/null | grep -vE '\.f[0-9]+\.' | head -1) || true
+    src_file=$(ls "${d}source/"sermon.* 2>/dev/null | grep -vE '\.f[0-9]+\.' | grep -E '\.(mp4|mkv|webm|m4a|mp3|wav)$' | head -1) || true
     [ -n "$src_file" ] || continue   # 조각만 있거나 아예 없으면 제외
     # stat's flags differ between macOS (BSD) and Linux (GNU) and a wrong
     # flag can silently print something else instead of erroring — python3
@@ -144,7 +144,17 @@ step() { printf '\n\033[1m━━ %s\033[0m\n' "$*"; }
 # died partway (a reset audio track, e.g.) leaves just the fragments —
 # matching a bare "sermon.*" glob would call that "already fetched" and
 # skip straight past a source that transcribe/render can't actually use.
-if ls "$DIR"/source/sermon.* 2>/dev/null | grep -vE '\.f[0-9]+\.' | grep -q .; then
+#
+# yt-dlp also writes "sermon.info.json" (metadata) the moment it starts —
+# before a single byte of actual video comes down. A run that dies right
+# after that (network drop, fetch killed mid-download) leaves only that
+# json behind, no fragments at all, and the old bare "sermon.*" glob
+# called that "already fetched" too (WED-2024-10-23: --auto skipped
+# straight to transcribe against a source folder with no video in it).
+# The extension whitelist below is the same one find_source() in
+# sermon_shorts.py uses, so this check and what transcribe/render will
+# actually accept never drift apart again.
+if ls "$DIR"/source/sermon.* 2>/dev/null | grep -vE '\.f[0-9]+\.' | grep -qE '\.(mp4|mkv|webm|m4a|mp3|wav)$'; then
   step "1/4 원본 — 이미 있음, 건너뜀"
 else
   step "1/4 원본 내려받기"
