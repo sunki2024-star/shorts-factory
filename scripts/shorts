@@ -46,14 +46,21 @@ fi
 # 렌더 결과엔 영향 없음). 끄려면 SHORTS_NO_BACKUP=1.
 # 완성된 쇼츠 영상까지 iCloud에 올려서 아이폰 '파일' 앱으로 바로 받고 싶으면
 # SHORTS_ICLOUD_RENDERS=1 (기본은 꺼짐 — 영상까지 올리면 용량이 커진다).
+# 자막을 아이폰·다른 맥에서도 고칠 수 있게 공유 작업 폴더(아이클라우드)에
+# 같이 올리려면 SHORTS_SHARED_EDIT=1 (scripts/sync-shared-captions.sh 가
+# 그 폴더를 지켜보다가 바뀐 자막을 다시 가져와 굽는다).
 if [ "$1" = "render" ] && [ -z "${SHORTS_NO_BACKUP:-}" ]; then
   rc=0
+  ID="${2:-}"
   "$PYBIN" scripts/sermon_shorts.py "$@" || rc=$?
   if [ "$rc" -eq 0 ]; then
     if [ -n "${SHORTS_ICLOUD_RENDERS:-}" ]; then
       bash scripts/backup-icloud.sh --with-renders || echo "(iCloud 백업은 건너뜀 — 렌더 결과는 정상)" >&2
     else
       bash scripts/backup-icloud.sh || echo "(iCloud 백업은 건너뜀 — 렌더 결과는 정상)" >&2
+    fi
+    if [ -n "${SHORTS_SHARED_EDIT:-}" ] && [ -n "$ID" ]; then
+      bash scripts/push-shared.sh "$ID" || echo "(공유 폴더 올리기는 건너뜀 — 렌더 결과는 정상)" >&2
     fi
   fi
   exit "$rc"

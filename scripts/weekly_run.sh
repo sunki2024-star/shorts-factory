@@ -219,6 +219,9 @@ if [ -z "${SHORTS_NO_BACKUP:-}" ]; then
   else
     bash scripts/backup-icloud.sh || echo "(iCloud 백업은 건너뜀 — 렌더 결과는 정상)" >&2
   fi
+  if [ -n "${SHORTS_SHARED_EDIT:-}" ]; then
+    bash scripts/push-shared.sh "$ID" || echo "(공유 폴더 올리기는 건너뜀 — 렌더 결과는 정상)" >&2
+  fi
 fi
 
 cat <<EOF
