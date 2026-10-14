@@ -4,6 +4,12 @@
 #   bash scripts/backup-icloud.sh                 기본 — 다른 맥에서 이어 하기에 충분 (약 15MB)
 #   bash scripts/backup-icloud.sh --with-renders  완성된 쇼츠 영상까지 (약 +0.6GB)
 #
+# `scripts/shorts render`/`weekly_run.sh` 가 렌더 뒤에 이 스크립트를 자동으로
+# 부르는데, 매번 --with-renders 를 켜두고 싶으면(= 완성 영상이 아이폰 '파일'
+# 앱에 자동으로 뜨게 하고 싶으면) 쉘 프로필(~/.zshrc 등)에 아래 한 줄을
+# 넣어두면 된다:
+#   export SHORTS_ICLOUD_RENDERS=1
+#
 # 왜 폴더 통째로 iCloud에 옮기지 않나:
 #   iCloud는 파일을 하나씩 따로 동기화해서 .git 이 깨질 수 있고, "Mac 저장
 #   공간 최적화"가 켜져 있으면 큰 영상을 맥에서 지워버려 렌더가 실패한다.

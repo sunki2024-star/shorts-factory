@@ -213,7 +213,13 @@ fi
 # 4 ─ 렌더 -----------------------------------------------------------------
 step "4/4 렌더"
 $PY render "$ID"
-[ -z "${SHORTS_NO_BACKUP:-}" ] && { bash scripts/backup-icloud.sh || echo "(iCloud 백업은 건너뜀 — 렌더 결과는 정상)" >&2; }
+if [ -z "${SHORTS_NO_BACKUP:-}" ]; then
+  if [ -n "${SHORTS_ICLOUD_RENDERS:-}" ]; then
+    bash scripts/backup-icloud.sh --with-renders || echo "(iCloud 백업은 건너뜀 — 렌더 결과는 정상)" >&2
+  else
+    bash scripts/backup-icloud.sh || echo "(iCloud 백업은 건너뜀 — 렌더 결과는 정상)" >&2
+  fi
+fi
 
 cat <<EOF
 

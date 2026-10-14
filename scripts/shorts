@@ -44,11 +44,17 @@ fi
 
 # 렌더가 끝나면 iCloud Drive에 작업물 복사본을 남긴다 (best-effort — 실패해도
 # 렌더 결과엔 영향 없음). 끄려면 SHORTS_NO_BACKUP=1.
+# 완성된 쇼츠 영상까지 iCloud에 올려서 아이폰 '파일' 앱으로 바로 받고 싶으면
+# SHORTS_ICLOUD_RENDERS=1 (기본은 꺼짐 — 영상까지 올리면 용량이 커진다).
 if [ "$1" = "render" ] && [ -z "${SHORTS_NO_BACKUP:-}" ]; then
   rc=0
   "$PYBIN" scripts/sermon_shorts.py "$@" || rc=$?
   if [ "$rc" -eq 0 ]; then
-    bash scripts/backup-icloud.sh || echo "(iCloud 백업은 건너뜀 — 렌더 결과는 정상)" >&2
+    if [ -n "${SHORTS_ICLOUD_RENDERS:-}" ]; then
+      bash scripts/backup-icloud.sh --with-renders || echo "(iCloud 백업은 건너뜀 — 렌더 결과는 정상)" >&2
+    else
+      bash scripts/backup-icloud.sh || echo "(iCloud 백업은 건너뜀 — 렌더 결과는 정상)" >&2
+    fi
   fi
   exit "$rc"
 fi
