@@ -90,15 +90,18 @@ OUT_W, OUT_H = 1080, 1920
 # preacher's voice natural while cutting dead air; per-clip `speed` overrides.
 DEFAULT_SPEED = 1.5
 
-# ASS colours are &HAABBGGRR — byte-reversed from hex RGB, so yellow #FFFF00
-# is written 00FFFF. Captions sit over the pulpit, which is white and brightly
-# lit; white text washed out against it even with an outline. Yellow separates
-# from both the pulpit and the dark green backdrop.
-SUBTITLE_COLOUR = "&H0000FFFF"   # #FFFF00
+# ASS colours are &HAABBGGRR — byte-reversed from hex RGB. Captions now sit
+# on a solid navy plate (see LETTERBOX_BG below), not over the pulpit, so
+# plain white reads cleanly — the yellow this used to be was only there to
+# separate from the pulpit/backdrop, which no longer shows behind the text.
+SUBTITLE_COLOUR = "&H00FFFFFF"   # #FFFFFF
 
 # The Shorts player draws its own furniture over the bottom of the frame —
 # channel handle, title, description, progress bar — so the bottom of a
 # 1920-tall video is not ours to use. Captions are lifted clear of it.
+# Measured 2026-11: Instagram Reels' own UI (handle/caption/icon column)
+# sits lower than this and leaves more room, so YouTube stays the binding
+# constraint for whichever platform a clip ends up on.
 SUBTITLE_MARGIN_V = 480
 
 # The on-screen title. Chars-per-line is derived from the size rather than set
@@ -107,6 +110,19 @@ SUBTITLE_MARGIN_V = 480
 TITLE_SIZE = int(os.environ.get("TITLE_SIZE", 92))
 TITLE_SIDE_MARGIN = 60
 TITLE_MAX_LINES = 3
+
+# Modern-navy letterbox — design review 2026-11-07. Video shows only in the
+# middle band; the top band and a bottom caption plate are solid navy, each
+# closed off from the video by a thin gold-brown rule. Picked over plain
+# black, which read as funereal. The caption PLATE runs flush to the bottom
+# edge (clean, symmetric), but the caption TEXT still ends at the usual
+# SUBTITLE_MARGIN_V line above — only the plate's empty lower reach sits in
+# the zone a platform's own UI might cover.
+LETTERBOX_BG = "0x151B26"        # modern navy
+ACCENT_COLOUR = "0xB2966E"       # muted gold-brown rule between band and video
+LETTERBOX_TOP_H = 410            # 0–410: navy — kicker + title
+CAP_BAND_TOP = 1220              # 1220–1920: navy — caption plate
+RULE_W, RULE_H = 90, 3
 
 
 def title_per_line(size: int) -> int:
@@ -1325,7 +1341,7 @@ def split_for_display(seg: dict, per_line: int = SUB_PER_LINE,
 def write_ass(segs: list[dict], path: Path, offset: float = 0.0,
               font_size: int = 64, margin_v: int = SUBTITLE_MARGIN_V,
               title: str = "", duration: float = 0.0,
-              title_size: int = TITLE_SIZE):
+              title_size: int = TITLE_SIZE, kicker: str = ""):
     """Burn-in subtitles as ASS, with an optional standing title card.
 
     SRT carries no resolution, so libass falls back to a 384x288 script and
@@ -1349,6 +1365,7 @@ ScaledBorderAndShadow: yes
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{FONT_NAME},{font_size},{SUBTITLE_COLOUR},&H000000FF,&H00000000,&H96000000,1,0,0,0,100,100,0,0,1,5,2,2,70,70,{margin_v},1
 Style: Title,{FONT_NAME},{title_size},&H00FFFFFF,&H000000FF,&H00202020,&H00000000,1,0,0,0,100,100,0,0,1,6,0,8,{TITLE_SIDE_MARGIN},{TITLE_SIDE_MARGIN},110,1
+Style: Kicker,{FONT_NAME},30,&H00AAB4C0,&H000000FF,&H00202020,&H00000000,0,0,0,0,100,100,0,0,1,4,0,8,{TITLE_SIDE_MARGIN},{TITLE_SIDE_MARGIN},46,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -1359,6 +1376,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     rows = []
     if title and duration > 0:
+        if kicker:
+            rows.append(f"Dialogue: 1,{ass_ts(0)},{ass_ts(duration)},Kicker,,0,0,0,,{kicker}")
         rows.append(f"Dialogue: 1,{ass_ts(0)},{ass_ts(duration)},Title,,0,0,0,,"
                     f"{wrap_korean(title, per_line=title_per_line(title_size), max_lines=TITLE_MAX_LINES)}")
     for s in cues:
@@ -2964,10 +2983,18 @@ def cmd_render(args):
             die(f"{cid}: speed {speed} is outside atempo's 0.5–2.0 range")
 
         ass = sub_dir / f"{cid}.ass"
+        # 네이비 윗판의 작은 출처 줄 — 어느 교회 걸 다른 교회가 그대로 써도
+        # 틀리지 않도록 church.json 으로 덮어쓴 CHURCH_NAME/SERMON_PREACHER 를
+        # 그대로 읽는다. idea-id 접두사로 새벽기도/수요예배/주일예배를 가른다.
+        kind_m = re.match(r"(SUN|WED|DAWN)-", args.idea_id)
+        service_label = {"SUN": "주일설교", "WED": "수요설교",
+                          "DAWN": "새벽기도"}.get(kind_m.group(1) if kind_m else "", "주일설교")
+        kicker = f"{CHURCH_NAME} {service_label}  ·  {SERMON_PREACHER} 목사"
         write_ass(window, ass, offset=sub_offset,
                   title=c.get("title", "") if c.get("show_title", True) else "",
                   duration=end - start,
-                  title_size=int(c.get("title_size", TITLE_SIZE)))
+                  title_size=int(c.get("title_size", TITLE_SIZE)),
+                  kicker=kicker if c.get("show_title", True) else "")
         write_srt(window, sub_dir / f"{cid}.srt", offset=sub_offset)  # for YouTube upload
 
         out = out_dir / f"{cid}.mp4"
@@ -2984,7 +3011,15 @@ def cmd_render(args):
         # runs closes that window; -avoid_negative_ts belt-and-braces the
         # muxer side of the same seam. Captions never showed this because
         # none of them start at 0.
-        vf = f"setpts=PTS-STARTPTS,{crop_filter(c.get('crop', 'center'))},{subtitles_filter(ass)}"
+        rule_x = (OUT_W - RULE_W) // 2
+        letterbox = (
+            f"drawbox=x=0:y=0:w={OUT_W}:h={LETTERBOX_TOP_H}:color={LETTERBOX_BG}:t=fill,"
+            f"drawbox=x=0:y={CAP_BAND_TOP}:w={OUT_W}:h={OUT_H - CAP_BAND_TOP}:color={LETTERBOX_BG}:t=fill,"
+            f"drawbox=x={rule_x}:y={LETTERBOX_TOP_H - 40}:w={RULE_W}:h={RULE_H}:color={ACCENT_COLOUR}:t=fill,"
+            f"drawbox=x={rule_x}:y={CAP_BAND_TOP + 24}:w={RULE_W}:h={RULE_H}:color={ACCENT_COLOUR}:t=fill"
+        )
+        vf = (f"setpts=PTS-STARTPTS,{crop_filter(c.get('crop', 'center'))},"
+              f"{letterbox},{subtitles_filter(ass)}")
         af = None
         if speed != 1.0:
             vf += f",setpts=PTS/{speed}"
