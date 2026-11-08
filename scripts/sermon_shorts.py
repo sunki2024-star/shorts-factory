@@ -90,15 +90,18 @@ OUT_W, OUT_H = 1080, 1920
 # preacher's voice natural while cutting dead air; per-clip `speed` overrides.
 DEFAULT_SPEED = 1.5
 
-# ASS colours are &HAABBGGRR — byte-reversed from hex RGB, so yellow #FFFF00
-# is written 00FFFF. Captions sit over the pulpit, which is white and brightly
-# lit; white text washed out against it even with an outline. Yellow separates
-# from both the pulpit and the dark green backdrop.
-SUBTITLE_COLOUR = "&H0000FFFF"   # #FFFF00
+# ASS colours are &HAABBGGRR — byte-reversed from hex RGB. Captions now sit
+# on a solid navy plate (see LETTERBOX_BG below), not over the pulpit, so
+# plain white reads cleanly — the yellow this used to be was only there to
+# separate from the pulpit/backdrop, which no longer shows behind the text.
+SUBTITLE_COLOUR = "&H00FFFFFF"   # #FFFFFF
 
 # The Shorts player draws its own furniture over the bottom of the frame —
 # channel handle, title, description, progress bar — so the bottom of a
 # 1920-tall video is not ours to use. Captions are lifted clear of it.
+# Measured 2026-11: Instagram Reels' own UI (handle/caption/icon column)
+# sits lower than this and leaves more room, so YouTube stays the binding
+# constraint for whichever platform a clip ends up on.
 SUBTITLE_MARGIN_V = 480
 
 # The on-screen title. Chars-per-line is derived from the size rather than set
@@ -107,6 +110,50 @@ SUBTITLE_MARGIN_V = 480
 TITLE_SIZE = int(os.environ.get("TITLE_SIZE", 92))
 TITLE_SIDE_MARGIN = 60
 TITLE_MAX_LINES = 3
+
+# Modern-navy letterbox — design review 2026-11-07. Video shows only in the
+# middle band; the top band and a bottom caption plate are solid navy, each
+# closed off from the video by a thin gold-brown rule. Picked over plain
+# black, which read as funereal. The caption PLATE runs flush to the bottom
+# edge (clean, symmetric), but the caption TEXT still ends at the usual
+# SUBTITLE_MARGIN_V line above — only the plate's empty lower reach sits in
+# the zone a platform's own UI might cover.
+LETTERBOX_BG = "0x1C2B4A"        # modern navy — bluer pick after side-by-side review, 2026-11-08
+ACCENT_COLOUR = "0xB2966E"       # muted gold-brown rule between band and video
+LETTERBOX_TOP_H = 410            # 0–410: navy — kicker + title
+CAP_BAND_TOP = 1220              # 1220–1920: navy — caption plate
+RULE_W, RULE_H = 90, 3
+
+# Kicker/title placement inside the top band — fixed 2026-11-08.
+#
+# Both used to be plain Alignment+MarginV lines, and libass's automatic
+# collision avoidance (silently repositions overlapping same-time events)
+# decided the real on-screen position, not the MarginV numbers in the style
+# — changing Title's own MarginV did nothing as long as Kicker stayed put,
+# because libass was stacking Title directly under Kicker's box regardless.
+# That made the layout impossible to reason about, and it shipped with two
+# real defects: the kicker sat inside YouTube Shorts' own top scrim (the
+# translucent blur band behind its back/search/⋯ icons) and read as a grey
+# smear — confirmed by comparing a real posted YouTube Short against the
+# same clip on Instagram, where that scrim doesn't exist and the kicker is
+# crisp — and a 3-line title already overlapped the rule by a few px even
+# before this change (titles grow downward from a fixed top, so every extra
+# wrapped line pushed the bottom further into the rule's territory).
+#
+# Both are now placed with an explicit \pos() override instead, which
+# bypasses collision avoidance entirely, so each sits exactly where it's
+# told regardless of the other:
+#   - Kicker is pinned to a fixed top (\an8), chosen to clear the YouTube
+#     scrim (measured end ≈ y=113–117) with a margin.
+#   - Title is pinned to a fixed BOTTOM (\an2) just above the rule, the
+#     same bottom-anchored-grows-upward shape already used for captions —
+#     so however many lines it wraps to, the bottom never moves and never
+#     reaches the rule. (A long enough title can still grow up far enough
+#     to reach the kicker above it; titles are short curated hooks, not
+#     transcript text, so this is accepted as the rare case rather than
+#     shrinking the font to chase it.)
+KICKER_POS_Y = 140                      # top anchor, y of the kicker's own top
+TITLE_POS_BOTTOM = LETTERBOX_TOP_H - 46  # bottom anchor, ~18px clear of the rule — moved down from -65 (2026-11-08) to open a gap above from the kicker
 
 
 def title_per_line(size: int) -> int:
@@ -1325,7 +1372,7 @@ def split_for_display(seg: dict, per_line: int = SUB_PER_LINE,
 def write_ass(segs: list[dict], path: Path, offset: float = 0.0,
               font_size: int = 64, margin_v: int = SUBTITLE_MARGIN_V,
               title: str = "", duration: float = 0.0,
-              title_size: int = TITLE_SIZE):
+              title_size: int = TITLE_SIZE, kicker: str = ""):
     """Burn-in subtitles as ASS, with an optional standing title card.
 
     SRT carries no resolution, so libass falls back to a 384x288 script and
@@ -1348,7 +1395,8 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{FONT_NAME},{font_size},{SUBTITLE_COLOUR},&H000000FF,&H00000000,&H96000000,1,0,0,0,100,100,0,0,1,5,2,2,70,70,{margin_v},1
-Style: Title,{FONT_NAME},{title_size},&H00FFFFFF,&H000000FF,&H00202020,&H00000000,1,0,0,0,100,100,0,0,1,6,0,8,{TITLE_SIDE_MARGIN},{TITLE_SIDE_MARGIN},110,1
+Style: Title,{FONT_NAME},{title_size},&H00FFFFFF,&H000000FF,&H00202020,&H00000000,1,0,0,0,100,100,0,0,1,6,0,2,{TITLE_SIDE_MARGIN},{TITLE_SIDE_MARGIN},0,1
+Style: Kicker,{FONT_NAME},30,&H00AAB4C0,&H000000FF,&H00202020,&H00000000,0,0,0,0,100,100,0,0,1,4,0,8,{TITLE_SIDE_MARGIN},{TITLE_SIDE_MARGIN},0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -1359,7 +1407,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     rows = []
     if title and duration > 0:
+        if kicker:
+            rows.append(f"Dialogue: 1,{ass_ts(0)},{ass_ts(duration)},Kicker,,0,0,0,,"
+                        f"{{\\an8\\pos({OUT_W // 2},{KICKER_POS_Y})}}{kicker}")
         rows.append(f"Dialogue: 1,{ass_ts(0)},{ass_ts(duration)},Title,,0,0,0,,"
+                    f"{{\\an2\\pos({OUT_W // 2},{TITLE_POS_BOTTOM})}}"
                     f"{wrap_korean(title, per_line=title_per_line(title_size), max_lines=TITLE_MAX_LINES)}")
     for s in cues:
         start, end = s["start"] - offset, s["end"] - offset
@@ -2167,7 +2219,7 @@ def end_card_from_title(idea_id: str, video_title: str) -> dict:
 
     return {"date": date, "scripture": scripture, "title": title,
             "preacher": preacher, "church": CHURCH_NAME,
-            "handle": channel_handle()}
+            "website": CHURCH_WEBSITE, "handle": channel_handle()}
 
 
 def source_title(d: Path) -> str:
@@ -2296,7 +2348,7 @@ def ensure_end_card(d: Path, idea_id: str) -> Path | None:
 
 
 END_CARD_SECONDS = 4.0
-END_CARD_BG = "0x123A34"   # the sanctuary's stage green, so the cut reads as one piece
+END_CARD_BG = LETTERBOX_BG  # matches the navy letterbox now, instead of the old sanctuary green
 
 
 def _ass_escape(s: str) -> str:
@@ -2310,23 +2362,30 @@ def build_end_card(cfg: dict, out: Path, seconds: float = END_CARD_SECONDS) -> P
     excerpt is an unattributed stranger talking; with it, the sermon is
     searchable by title and passage, which are exact and unique.
     """
+    handle = cfg.get("handle", "")
+    website = cfg.get("website", "")
     lines = [
         # (text, y, size, colour, bold)
-        (cfg.get("date", ""),      560,  54, "&H00C8D8D4", 0),
+        (cfg.get("date", ""),      560,  54, "&H00C8D8D4", 0, 24, 1),
         (cfg.get("scripture", ""), 690,  60, "&H0090E0C8", 1),
-        (cfg.get("title", ""),     880,  78, "&H00FFFFFF", 1),
+        (cfg.get("title", ""),     880,  78, "&H006E96B2", 1),
         (cfg.get("preacher", ""), 1180,  58, "&H00E8F0EE", 0),
-        (cfg.get("church", ""),   1360,  68, "&H00FFFFFF", 1),
-        (cfg.get("handle", ""),   1470,  48, "&H0098B0AC", 0),
+        (cfg.get("church", ""),   1360,  68, "&H00FFFFFF", 1, 24, 1),
+        # 같은 금색-브라운 포인트를 레터박스 룰 라인과 맞춰 썼다 (&HAABBGGRR,
+        # ACCENT_COLOUR 0xB2966E 를 그대로 바이트 반전).
+        (f"홈페이지 : {website}" if website else "", 1460, 44, "&H006E96B2", 0, 40, 1),
+        (f"유튜브 : {handle}" if handle else "",      1540, 36, "&H006E96B2", 0, 40, 1),
     ]
     rows, styles = [], []
-    for i, (text, y, size, colour, bold) in enumerate(lines):
+    for i, line in enumerate(lines):
+        text, y, size, colour, bold = line[:5]
+        per_line, max_lines = (line[5], line[6]) if len(line) > 5 else (14, 2)
         if not text:
             continue
         styles.append(
             f"Style: E{i},{FONT_NAME},{size},{colour},&H000000FF,&H00000000,&H00000000,"
             f"{bold},0,0,0,100,100,0,0,1,0,0,5,60,60,0,1")
-        wrapped = wrap_korean(_ass_escape(text), per_line=14, max_lines=2)
+        wrapped = wrap_korean(_ass_escape(text), per_line=per_line, max_lines=max_lines)
         rows.append(f"Dialogue: 0,{ass_ts(0)},{ass_ts(seconds)},E{i},,0,0,0,,"
                     f"{{\\pos({OUT_W//2},{y})}}{wrapped}")
 
@@ -2707,15 +2766,25 @@ def auto_crop(video: Path, start: float = 0.0, end: float | None = None,
     return {"x": x, "y": top, "h": ch}
 
 
-# A still image gets the whole frame, not a slice of it: the picture is scaled
-# to the full width and centred, over a blurred blow-up of itself so the 9:16
-# frame is filled rather than letterboxed black.
+# A still image is framed, not stretched to fill: scaled down to fit inside
+# the navy letterbox's video band with its aspect kept whole, wrapped in a
+# thin accent-colour border (echoing the rule lines above/below the band),
+# then padded out to the full canvas with the same navy as the bands. This
+# replaced an earlier blurred-blow-up background — fine when the picture
+# filled the whole 1920-tall frame, but once the letterbox shrank the video
+# area to a fixed middle band, the blur only had a sliver of room to work
+# in and read as a smeared edge rather than a background (design review
+# 2026-11-08, flagged on a 새벽기도 title-card clip).
+FIT_MARGIN = 36   # breathing room between the framed image and the video band's own edge
+FIT_BORDER = 6    # thickness of the accent-colour frame hugging the image
+VIDEO_BAND_H = CAP_BAND_TOP - LETTERBOX_TOP_H
 FIT_FILTER = (
-    "split[bg][fg];"
-    f"[bg]scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase,"
-    f"crop={OUT_W}:{OUT_H},gblur=sigma=32,eq=brightness=-0.09[bgb];"
-    f"[fg]scale={OUT_W}:-2[fgs];"
-    "[bgb][fgs]overlay=(W-w)/2:(H-h)/2-180"
+    f"scale=w={OUT_W - 2 * FIT_MARGIN}:h={VIDEO_BAND_H - 2 * FIT_MARGIN}:"
+    "force_original_aspect_ratio=decrease,"
+    f"pad=w=iw+{2 * FIT_BORDER}:h=ih+{2 * FIT_BORDER}:x={FIT_BORDER}:y={FIT_BORDER}:"
+    f"color={ACCENT_COLOUR},"
+    f"pad=w={OUT_W}:h={OUT_H}:x=(ow-iw)/2:"
+    f"y={LETTERBOX_TOP_H}+({VIDEO_BAND_H}-ih)/2:color={LETTERBOX_BG}"
 )
 
 
@@ -2964,10 +3033,18 @@ def cmd_render(args):
             die(f"{cid}: speed {speed} is outside atempo's 0.5–2.0 range")
 
         ass = sub_dir / f"{cid}.ass"
+        # 네이비 윗판의 작은 출처 줄 — 어느 교회 걸 다른 교회가 그대로 써도
+        # 틀리지 않도록 church.json 으로 덮어쓴 CHURCH_NAME/SERMON_PREACHER 를
+        # 그대로 읽는다. idea-id 접두사로 새벽기도/수요예배/주일예배를 가른다.
+        kind_m = re.match(r"(SUN|WED|DAWN)-", args.idea_id)
+        service_label = {"SUN": "주일설교", "WED": "수요설교",
+                          "DAWN": "새벽기도"}.get(kind_m.group(1) if kind_m else "", "주일설교")
+        kicker = f"{CHURCH_NAME} {service_label}  ·  {SERMON_PREACHER} 목사"
         write_ass(window, ass, offset=sub_offset,
                   title=c.get("title", "") if c.get("show_title", True) else "",
                   duration=end - start,
-                  title_size=int(c.get("title_size", TITLE_SIZE)))
+                  title_size=int(c.get("title_size", TITLE_SIZE)),
+                  kicker=kicker if c.get("show_title", True) else "")
         write_srt(window, sub_dir / f"{cid}.srt", offset=sub_offset)  # for YouTube upload
 
         out = out_dir / f"{cid}.mp4"
@@ -2984,7 +3061,15 @@ def cmd_render(args):
         # runs closes that window; -avoid_negative_ts belt-and-braces the
         # muxer side of the same seam. Captions never showed this because
         # none of them start at 0.
-        vf = f"setpts=PTS-STARTPTS,{crop_filter(c.get('crop', 'center'))},{subtitles_filter(ass)}"
+        rule_x = (OUT_W - RULE_W) // 2
+        letterbox = (
+            f"drawbox=x=0:y=0:w={OUT_W}:h={LETTERBOX_TOP_H}:color={LETTERBOX_BG}:t=fill,"
+            f"drawbox=x=0:y={CAP_BAND_TOP}:w={OUT_W}:h={OUT_H - CAP_BAND_TOP}:color={LETTERBOX_BG}:t=fill,"
+            f"drawbox=x={rule_x}:y={LETTERBOX_TOP_H - 40}:w={RULE_W}:h={RULE_H}:color={ACCENT_COLOUR}:t=fill,"
+            f"drawbox=x={rule_x}:y={CAP_BAND_TOP + 8}:w={RULE_W}:h={RULE_H}:color={ACCENT_COLOUR}:t=fill"
+        )
+        vf = (f"setpts=PTS-STARTPTS,{crop_filter(c.get('crop', 'center'))},"
+              f"{letterbox},{subtitles_filter(ass)}")
         af = None
         if speed != 1.0:
             vf += f",setpts=PTS/{speed}"
@@ -3278,6 +3363,7 @@ CHANNEL_STREAMS = CHANNEL.rstrip("/") + "/streams"
 CHANNEL_VIDEOS = CHANNEL.rstrip("/") + "/videos"
 SERMON_PREACHER = os.environ.get("SERMON_PREACHER", "장선기")
 CHURCH_NAME = os.environ.get("CHURCH_NAME", "방배동 예심교회")
+CHURCH_WEBSITE = os.environ.get("CHURCH_WEBSITE", "yeshim.net")
 
 
 def load_church_config() -> None:
@@ -3287,7 +3373,7 @@ def load_church_config() -> None:
     An explicit environment variable wins, so a one-off run can override the
     file without changing it.
     """
-    global CHANNEL, CHANNEL_STREAMS, CHANNEL_VIDEOS, SERMON_PREACHER, CHURCH_NAME
+    global CHANNEL, CHANNEL_STREAMS, CHANNEL_VIDEOS, SERMON_PREACHER, CHURCH_NAME, CHURCH_WEBSITE
     f = REPO / "church.json"
     if f.exists():
         try:
@@ -3302,6 +3388,8 @@ def load_church_config() -> None:
             SERMON_PREACHER = cfg["preacher"]
         if not os.environ.get("CHURCH_NAME") and cfg.get("church"):
             CHURCH_NAME = cfg["church"]
+        if not os.environ.get("CHURCH_WEBSITE") and cfg.get("website"):
+            CHURCH_WEBSITE = cfg["website"]
 
 
 def channel_handle() -> str:
