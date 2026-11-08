@@ -2726,15 +2726,25 @@ def auto_crop(video: Path, start: float = 0.0, end: float | None = None,
     return {"x": x, "y": top, "h": ch}
 
 
-# A still image gets the whole frame, not a slice of it: the picture is scaled
-# to the full width and centred, over a blurred blow-up of itself so the 9:16
-# frame is filled rather than letterboxed black.
+# A still image is framed, not stretched to fill: scaled down to fit inside
+# the navy letterbox's video band with its aspect kept whole, wrapped in a
+# thin accent-colour border (echoing the rule lines above/below the band),
+# then padded out to the full canvas with the same navy as the bands. This
+# replaced an earlier blurred-blow-up background — fine when the picture
+# filled the whole 1920-tall frame, but once the letterbox shrank the video
+# area to a fixed middle band, the blur only had a sliver of room to work
+# in and read as a smeared edge rather than a background (design review
+# 2026-11-08, flagged on a 새벽기도 title-card clip).
+FIT_MARGIN = 36   # breathing room between the framed image and the video band's own edge
+FIT_BORDER = 6    # thickness of the accent-colour frame hugging the image
+VIDEO_BAND_H = CAP_BAND_TOP - LETTERBOX_TOP_H
 FIT_FILTER = (
-    "split[bg][fg];"
-    f"[bg]scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase,"
-    f"crop={OUT_W}:{OUT_H},gblur=sigma=32,eq=brightness=-0.09[bgb];"
-    f"[fg]scale={OUT_W}:-2[fgs];"
-    "[bgb][fgs]overlay=(W-w)/2:(H-h)/2-180"
+    f"scale=w={OUT_W - 2 * FIT_MARGIN}:h={VIDEO_BAND_H - 2 * FIT_MARGIN}:"
+    "force_original_aspect_ratio=decrease,"
+    f"pad=w=iw+{2 * FIT_BORDER}:h=ih+{2 * FIT_BORDER}:x={FIT_BORDER}:y={FIT_BORDER}:"
+    f"color={ACCENT_COLOUR},"
+    f"pad=w={OUT_W}:h={OUT_H}:x=(ow-iw)/2:"
+    f"y={LETTERBOX_TOP_H}+({VIDEO_BAND_H}-ih)/2:color={LETTERBOX_BG}"
 )
 
 
@@ -3016,7 +3026,7 @@ def cmd_render(args):
             f"drawbox=x=0:y=0:w={OUT_W}:h={LETTERBOX_TOP_H}:color={LETTERBOX_BG}:t=fill,"
             f"drawbox=x=0:y={CAP_BAND_TOP}:w={OUT_W}:h={OUT_H - CAP_BAND_TOP}:color={LETTERBOX_BG}:t=fill,"
             f"drawbox=x={rule_x}:y={LETTERBOX_TOP_H - 40}:w={RULE_W}:h={RULE_H}:color={ACCENT_COLOUR}:t=fill,"
-            f"drawbox=x={rule_x}:y={CAP_BAND_TOP + 24}:w={RULE_W}:h={RULE_H}:color={ACCENT_COLOUR}:t=fill"
+            f"drawbox=x={rule_x}:y={CAP_BAND_TOP + 8}:w={RULE_W}:h={RULE_H}:color={ACCENT_COLOUR}:t=fill"
         )
         vf = (f"setpts=PTS-STARTPTS,{crop_filter(c.get('crop', 'center'))},"
               f"{letterbox},{subtitles_filter(ass)}")
