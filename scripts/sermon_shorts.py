@@ -2366,24 +2366,26 @@ def build_end_card(cfg: dict, out: Path, seconds: float = END_CARD_SECONDS) -> P
     website = cfg.get("website", "")
     lines = [
         # (text, y, size, colour, bold)
-        (cfg.get("date", ""),      560,  54, "&H00C8D8D4", 0),
+        (cfg.get("date", ""),      560,  54, "&H00C8D8D4", 0, 24, 1),
         (cfg.get("scripture", ""), 690,  60, "&H0090E0C8", 1),
-        (cfg.get("title", ""),     880,  78, "&H00FFFFFF", 1),
+        (cfg.get("title", ""),     880,  78, "&H006E96B2", 1),
         (cfg.get("preacher", ""), 1180,  58, "&H00E8F0EE", 0),
-        (cfg.get("church", ""),   1360,  68, "&H00FFFFFF", 1),
+        (cfg.get("church", ""),   1360,  68, "&H00FFFFFF", 1, 24, 1),
         # 같은 금색-브라운 포인트를 레터박스 룰 라인과 맞춰 썼다 (&HAABBGGRR,
         # ACCENT_COLOUR 0xB2966E 를 그대로 바이트 반전).
-        (f"홈페이지 : {website}" if website else "", 1460, 44, "&H006E96B2", 0),
-        (f"유튜브 : {handle}" if handle else "",      1540, 44, "&H006E96B2", 0),
+        (f"홈페이지 : {website}" if website else "", 1460, 44, "&H006E96B2", 0, 40, 1),
+        (f"유튜브 : {handle}" if handle else "",      1540, 36, "&H006E96B2", 0, 40, 1),
     ]
     rows, styles = [], []
-    for i, (text, y, size, colour, bold) in enumerate(lines):
+    for i, line in enumerate(lines):
+        text, y, size, colour, bold = line[:5]
+        per_line, max_lines = (line[5], line[6]) if len(line) > 5 else (14, 2)
         if not text:
             continue
         styles.append(
             f"Style: E{i},{FONT_NAME},{size},{colour},&H000000FF,&H00000000,&H00000000,"
             f"{bold},0,0,0,100,100,0,0,1,0,0,5,60,60,0,1")
-        wrapped = wrap_korean(_ass_escape(text), per_line=14, max_lines=2)
+        wrapped = wrap_korean(_ass_escape(text), per_line=per_line, max_lines=max_lines)
         rows.append(f"Dialogue: 0,{ass_ts(0)},{ass_ts(seconds)},E{i},,0,0,0,,"
                     f"{{\\pos({OUT_W//2},{y})}}{wrapped}")
 
