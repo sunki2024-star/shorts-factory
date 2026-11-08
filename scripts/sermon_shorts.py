@@ -2219,7 +2219,7 @@ def end_card_from_title(idea_id: str, video_title: str) -> dict:
 
     return {"date": date, "scripture": scripture, "title": title,
             "preacher": preacher, "church": CHURCH_NAME,
-            "handle": channel_handle()}
+            "website": CHURCH_WEBSITE, "handle": channel_handle()}
 
 
 def source_title(d: Path) -> str:
@@ -2348,7 +2348,7 @@ def ensure_end_card(d: Path, idea_id: str) -> Path | None:
 
 
 END_CARD_SECONDS = 4.0
-END_CARD_BG = "0x123A34"   # the sanctuary's stage green, so the cut reads as one piece
+END_CARD_BG = LETTERBOX_BG  # matches the navy letterbox now, instead of the old sanctuary green
 
 
 def _ass_escape(s: str) -> str:
@@ -2362,6 +2362,8 @@ def build_end_card(cfg: dict, out: Path, seconds: float = END_CARD_SECONDS) -> P
     excerpt is an unattributed stranger talking; with it, the sermon is
     searchable by title and passage, which are exact and unique.
     """
+    handle = cfg.get("handle", "")
+    website = cfg.get("website", "")
     lines = [
         # (text, y, size, colour, bold)
         (cfg.get("date", ""),      560,  54, "&H00C8D8D4", 0),
@@ -2369,7 +2371,10 @@ def build_end_card(cfg: dict, out: Path, seconds: float = END_CARD_SECONDS) -> P
         (cfg.get("title", ""),     880,  78, "&H00FFFFFF", 1),
         (cfg.get("preacher", ""), 1180,  58, "&H00E8F0EE", 0),
         (cfg.get("church", ""),   1360,  68, "&H00FFFFFF", 1),
-        (cfg.get("handle", ""),   1470,  48, "&H0098B0AC", 0),
+        # 같은 금색-브라운 포인트를 레터박스 룰 라인과 맞춰 썼다 (&HAABBGGRR,
+        # ACCENT_COLOUR 0xB2966E 를 그대로 바이트 반전).
+        (f"홈페이지 : {website}" if website else "", 1460, 44, "&H006E96B2", 0),
+        (f"유튜브 : {handle}" if handle else "",      1540, 44, "&H006E96B2", 0),
     ]
     rows, styles = [], []
     for i, (text, y, size, colour, bold) in enumerate(lines):
@@ -3356,6 +3361,7 @@ CHANNEL_STREAMS = CHANNEL.rstrip("/") + "/streams"
 CHANNEL_VIDEOS = CHANNEL.rstrip("/") + "/videos"
 SERMON_PREACHER = os.environ.get("SERMON_PREACHER", "장선기")
 CHURCH_NAME = os.environ.get("CHURCH_NAME", "방배동 예심교회")
+CHURCH_WEBSITE = os.environ.get("CHURCH_WEBSITE", "yeshim.net")
 
 
 def load_church_config() -> None:
@@ -3365,7 +3371,7 @@ def load_church_config() -> None:
     An explicit environment variable wins, so a one-off run can override the
     file without changing it.
     """
-    global CHANNEL, CHANNEL_STREAMS, CHANNEL_VIDEOS, SERMON_PREACHER, CHURCH_NAME
+    global CHANNEL, CHANNEL_STREAMS, CHANNEL_VIDEOS, SERMON_PREACHER, CHURCH_NAME, CHURCH_WEBSITE
     f = REPO / "church.json"
     if f.exists():
         try:
@@ -3380,6 +3386,8 @@ def load_church_config() -> None:
             SERMON_PREACHER = cfg["preacher"]
         if not os.environ.get("CHURCH_NAME") and cfg.get("church"):
             CHURCH_NAME = cfg["church"]
+        if not os.environ.get("CHURCH_WEBSITE") and cfg.get("website"):
+            CHURCH_WEBSITE = cfg["website"]
 
 
 def channel_handle() -> str:
