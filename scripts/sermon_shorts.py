@@ -124,6 +124,37 @@ LETTERBOX_TOP_H = 410            # 0–410: navy — kicker + title
 CAP_BAND_TOP = 1220              # 1220–1920: navy — caption plate
 RULE_W, RULE_H = 90, 3
 
+# Kicker/title placement inside the top band — fixed 2026-11-08.
+#
+# Both used to be plain Alignment+MarginV lines, and libass's automatic
+# collision avoidance (silently repositions overlapping same-time events)
+# decided the real on-screen position, not the MarginV numbers in the style
+# — changing Title's own MarginV did nothing as long as Kicker stayed put,
+# because libass was stacking Title directly under Kicker's box regardless.
+# That made the layout impossible to reason about, and it shipped with two
+# real defects: the kicker sat inside YouTube Shorts' own top scrim (the
+# translucent blur band behind its back/search/⋯ icons) and read as a grey
+# smear — confirmed by comparing a real posted YouTube Short against the
+# same clip on Instagram, where that scrim doesn't exist and the kicker is
+# crisp — and a 3-line title already overlapped the rule by a few px even
+# before this change (titles grow downward from a fixed top, so every extra
+# wrapped line pushed the bottom further into the rule's territory).
+#
+# Both are now placed with an explicit \pos() override instead, which
+# bypasses collision avoidance entirely, so each sits exactly where it's
+# told regardless of the other:
+#   - Kicker is pinned to a fixed top (\an8), chosen to clear the YouTube
+#     scrim (measured end ≈ y=113–117) with a margin.
+#   - Title is pinned to a fixed BOTTOM (\an2) just above the rule, the
+#     same bottom-anchored-grows-upward shape already used for captions —
+#     so however many lines it wraps to, the bottom never moves and never
+#     reaches the rule. (A long enough title can still grow up far enough
+#     to reach the kicker above it; titles are short curated hooks, not
+#     transcript text, so this is accepted as the rare case rather than
+#     shrinking the font to chase it.)
+KICKER_POS_Y = 140                      # top anchor, y of the kicker's own top
+TITLE_POS_BOTTOM = LETTERBOX_TOP_H - 65  # bottom anchor, 25px clear of the rule at LETTERBOX_TOP_H-40
+
 
 def title_per_line(size: int) -> int:
     return max(5, (OUT_W - 2 * TITLE_SIDE_MARGIN) // size)
@@ -1364,8 +1395,8 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{FONT_NAME},{font_size},{SUBTITLE_COLOUR},&H000000FF,&H00000000,&H96000000,1,0,0,0,100,100,0,0,1,5,2,2,70,70,{margin_v},1
-Style: Title,{FONT_NAME},{title_size},&H00FFFFFF,&H000000FF,&H00202020,&H00000000,1,0,0,0,100,100,0,0,1,6,0,8,{TITLE_SIDE_MARGIN},{TITLE_SIDE_MARGIN},110,1
-Style: Kicker,{FONT_NAME},30,&H00AAB4C0,&H000000FF,&H00202020,&H00000000,0,0,0,0,100,100,0,0,1,4,0,8,{TITLE_SIDE_MARGIN},{TITLE_SIDE_MARGIN},46,1
+Style: Title,{FONT_NAME},{title_size},&H00FFFFFF,&H000000FF,&H00202020,&H00000000,1,0,0,0,100,100,0,0,1,6,0,2,{TITLE_SIDE_MARGIN},{TITLE_SIDE_MARGIN},0,1
+Style: Kicker,{FONT_NAME},30,&H00AAB4C0,&H000000FF,&H00202020,&H00000000,0,0,0,0,100,100,0,0,1,4,0,8,{TITLE_SIDE_MARGIN},{TITLE_SIDE_MARGIN},0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -1377,8 +1408,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     rows = []
     if title and duration > 0:
         if kicker:
-            rows.append(f"Dialogue: 1,{ass_ts(0)},{ass_ts(duration)},Kicker,,0,0,0,,{kicker}")
+            rows.append(f"Dialogue: 1,{ass_ts(0)},{ass_ts(duration)},Kicker,,0,0,0,,"
+                        f"{{\\an8\\pos({OUT_W // 2},{KICKER_POS_Y})}}{kicker}")
         rows.append(f"Dialogue: 1,{ass_ts(0)},{ass_ts(duration)},Title,,0,0,0,,"
+                    f"{{\\an2\\pos({OUT_W // 2},{TITLE_POS_BOTTOM})}}"
                     f"{wrap_korean(title, per_line=title_per_line(title_size), max_lines=TITLE_MAX_LINES)}")
     for s in cues:
         start, end = s["start"] - offset, s["end"] - offset
