@@ -153,7 +153,7 @@ RULE_W, RULE_H = 90, 3
 #     transcript text, so this is accepted as the rare case rather than
 #     shrinking the font to chase it.)
 KICKER_POS_Y = 140                      # top anchor, y of the kicker's own top
-TITLE_POS_BOTTOM = LETTERBOX_TOP_H - 65  # bottom anchor, 25px clear of the rule at LETTERBOX_TOP_H-40
+TITLE_POS_BOTTOM = LETTERBOX_TOP_H - 46  # bottom anchor, ~18px clear of the rule — moved down from -65 (2026-11-08) to open a gap above from the kicker
 
 
 def title_per_line(size: int) -> int:
