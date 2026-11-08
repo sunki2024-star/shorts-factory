@@ -2364,17 +2364,21 @@ def build_end_card(cfg: dict, out: Path, seconds: float = END_CARD_SECONDS) -> P
     """
     handle = cfg.get("handle", "")
     website = cfg.get("website", "")
+    # 설교자부터 아래는 유튜브 쇼츠 자체 UI(핸들·설명·진행바)가 화면 맨 아래
+    # 쪽을 덮는 구간(본편 자막에서 쓰는 것과 같은 y>1440 기준)을 피하려고
+    # 통째로 위로 당겨 간격을 좁혔다 — 실제로 올려보니 유튜브/유튜브 주소
+    # 줄이 그 아이콘들에 가려졌던 걸 보고 수정 (2026-11-08).
     lines = [
         # (text, y, size, colour, bold)
         (cfg.get("date", ""),      560,  54, "&H00C8D8D4", 0, 24, 1),
         (cfg.get("scripture", ""), 690,  60, "&H0090E0C8", 1),
         (cfg.get("title", ""),     880,  78, "&H006E96B2", 1),
-        (cfg.get("preacher", ""), 1180,  58, "&H00E8F0EE", 0),
-        (cfg.get("church", ""),   1360,  68, "&H00FFFFFF", 1, 24, 1),
+        (cfg.get("preacher", ""), 1120,  58, "&H00E8F0EE", 0, 24, 1),
+        (cfg.get("church", ""),   1230,  64, "&H00FFFFFF", 1, 24, 1),
         # 같은 금색-브라운 포인트를 레터박스 룰 라인과 맞춰 썼다 (&HAABBGGRR,
         # ACCENT_COLOUR 0xB2966E 를 그대로 바이트 반전).
-        (f"홈페이지 : {website}" if website else "", 1460, 44, "&H006E96B2", 0, 40, 1),
-        (f"유튜브 : {handle}" if handle else "",      1540, 36, "&H006E96B2", 0, 40, 1),
+        (f"홈페이지 : {website}" if website else "", 1320, 40, "&H006E96B2", 0, 40, 1),
+        (f"유튜브 : {handle}" if handle else "",      1385, 32, "&H006E96B2", 0, 40, 1),
     ]
     rows, styles = [], []
     for i, line in enumerate(lines):
