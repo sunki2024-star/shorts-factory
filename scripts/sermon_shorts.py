@@ -118,7 +118,7 @@ TITLE_MAX_LINES = 3
 # edge (clean, symmetric), but the caption TEXT still ends at the usual
 # SUBTITLE_MARGIN_V line above — only the plate's empty lower reach sits in
 # the zone a platform's own UI might cover.
-LETTERBOX_BG = "0x151B26"        # modern navy
+LETTERBOX_BG = "0x1C2B4A"        # modern navy — bluer pick after side-by-side review, 2026-11-08
 ACCENT_COLOUR = "0xB2966E"       # muted gold-brown rule between band and video
 LETTERBOX_TOP_H = 410            # 0–410: navy — kicker + title
 CAP_BAND_TOP = 1220              # 1220–1920: navy — caption plate
