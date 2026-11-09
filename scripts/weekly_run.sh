@@ -114,13 +114,42 @@ PY="python3 scripts/sermon_shorts.py"
 # WED- 로 골랐던 게 사실 새벽기도(정지화면)라 이전 실행의 fetch 에서 이미
 # DAWN-<같은 날짜> 로 재분류돼 있을 수 있다 — 이어서 돌릴 때 옛 이름을 계속
 # 붙들지 않도록 여기서 먼저 확인한다.
+#
+# 그런데 "WED-<날짜> 폴더가 없고 DAWN-<날짜> 폴더는 있다"는 것만으로 같은
+# 영상이 재분류된 거라 단정하면 안 된다 — 같은 날짜에 완전히 다른 새벽기도
+# 영상이 따로(별개 idea로) 이미 처리돼 있을 수도 있다. 그 경우 여기서 그냥
+# 넘어가버리면 이 WED 영상을 그 무관한 DAWN 폴더 위에 그대로 덮어써서,
+# transcript.json/clips.json/자막은 옛 새벽기도 설교 내용 그대로인데 영상만
+# 바뀌는 사고가 난다 (2025-10-15: 수요예배 '빌립보서 1:12-21' 영상이 전혀
+# 다른 새벽기도 '마가복음 10:46-52' 자막 위에 덮어써진 사고가 실제로 있었다).
+#
+# 그래서 DAWN 폴더에 남아있는 sermon.info.json 의 webpage_url 이 지금 받으려는
+# $URL 과 같을 때만 "진짜 같은 영상의 재분류"로 보고 이어간다. info.json이
+# 없거나 URL이 다르면 — 같은 영상이라는 증거가 없는 것이므로 — 건드리지
+# 않고 WED-<날짜> 그대로 진행한다. 그게 실제로 새벽기도(정지화면)라면 fetch
+# 안의 check_dawn_misfile() 이 다운로드 직후 화면을 직접 보고 안전하게
+# 재분류하고, 그때도 DAWN 폴더가 이미 있으면 자동 재분류를 건너뛰고 사람이
+# 보라고 경고만 남긴다 — 절대 조용히 덮어쓰지 않는다.
 case "$ID" in
   WED-*)
     ALT="office/production/DAWN-${ID#WED-}"
     if [ ! -d "$DIR" ] && [ -d "$ALT" ]; then
-      ID="DAWN-${ID#WED-}"
-      DIR="$ALT"
-      echo "   (이미 새벽기도로 재분류됨 — $ID 로 이어간다)"
+      ALT_URL=$(python3 -c "
+import json
+try:
+    d = json.load(open('${ALT}/source/sermon.info.json'))
+    print(d.get('webpage_url') or '')
+except Exception:
+    pass
+" 2>/dev/null || true)
+      if [ -n "$ALT_URL" ] && [ "$ALT_URL" = "$URL" ]; then
+        ID="DAWN-${ID#WED-}"
+        DIR="$ALT"
+        echo "   (이미 새벽기도로 재분류됨 — $ID 로 이어간다)"
+      else
+        echo "   ⚠ $ALT 가 이미 있지만 받으려는 영상과 같다는 증거가 없어" >&2
+        echo "     건드리지 않는다 — 이 영상은 $ID 로 그대로 진행한다" >&2
+      fi
     fi
     ;;
 esac
