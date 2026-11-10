@@ -2792,6 +2792,27 @@ FIT_FILTER = (
 )
 
 
+def _band_crop_geometry(x0: int, h: int) -> tuple[str, str]:
+    """A saved crop's x/h were chosen to centre a 9:16 window on the
+    detected subject (see auto_crop). The video band is shorter than the
+    full canvas though, so what actually needs to fill it is wider than
+    9:16 — recentre that same subject inside the wider window rather than
+    just widening it from the same left edge, which pushes him off-centre
+    (confirmed on WED-2026-02-25: the podium's empty side filled most of
+    the frame with him pressed to the left, design review 2026-11-10).
+    Returns (width_expr, x_expr); x_expr is clamped to the source frame
+    via ffmpeg's `in_w` since the recentred window can run off either edge.
+    """
+    w_expr = f"{h}*{OUT_W}/{VIDEO_BAND_H}"
+    old_w = f"{h}*9/16"
+    # The commas inside min()/max() are option-value commas, not filter
+    # separators, but ffmpeg's -vf parser can't tell the difference once
+    # this sits inside a larger comma-joined filter chain — escape them or
+    # it reads as "no such filter: min(...".
+    x_expr = fr"max(0\,min({x0}+({old_w}-({w_expr}))/2\,in_w-({w_expr})))"
+    return w_expr, x_expr
+
+
 def crop_filter(mode) -> str:
     """16:9 → 9:16.
 
@@ -2815,13 +2836,18 @@ def crop_filter(mode) -> str:
         if mode.get("fit"):
             return FIT_FILTER
         h = int(mode["h"])
-        return (f"crop=w={h}*9/16:h={h}:x={int(mode.get('x', 0))}:y={int(mode.get('y', 0))},"
-                f"scale={OUT_W}:{OUT_H}")
+        x0 = int(mode.get('x', 0))
+        w_expr, x_expr = _band_crop_geometry(x0, h)
+        return (f"crop=w={w_expr}:h={h}:x={x_expr}:y={int(mode.get('y', 0))},"
+                f"scale={OUT_W}:{VIDEO_BAND_H},"
+                f"pad=w={OUT_W}:h={OUT_H}:x=0:y={LETTERBOX_TOP_H}:color={LETTERBOX_BG}")
     if isinstance(mode, (int, float)):
         x = str(int(mode))
     else:
         x = {"center": "(iw-ow)/2", "left": "0", "right": "iw-ow"}.get(mode, "(iw-ow)/2")
-    return f"crop=w=ih*9/16:h=ih:x={x}:y=0,scale={OUT_W}:{OUT_H}"
+    return (f"crop=w=ih*{OUT_W}/{VIDEO_BAND_H}:h=ih:x={x}:y=0,"
+            f"scale={OUT_W}:{VIDEO_BAND_H},"
+            f"pad=w={OUT_W}:h={OUT_H}:x=0:y={LETTERBOX_TOP_H}:color={LETTERBOX_BG}")
 
 
 # Cheap enough to run on every clip, every render (a handful of tiny ffmpeg
@@ -3239,8 +3265,11 @@ def cmd_preview(args):
 
         # The same moment uncropped, with the window drawn on it.
         if isinstance(crop, dict):
-            cw = int(crop["h"] * 9 / 16)
-            box = (f"drawbox=x={crop['x']}:y={crop.get('y', 0)}:w={cw}:"
+            # Mirror crop_filter's own recentring so the debug box shows the
+            # window that will actually render, not the narrower 9:16
+            # reference the x/h were originally picked against.
+            w_expr, x_expr = _band_crop_geometry(int(crop["x"]), int(crop["h"]))
+            box = (f"drawbox=x={x_expr}:y={crop.get('y', 0)}:w={w_expr}:"
                    f"h={crop['h']}:color=yellow@1:t=4")
         else:
             box = "null"
